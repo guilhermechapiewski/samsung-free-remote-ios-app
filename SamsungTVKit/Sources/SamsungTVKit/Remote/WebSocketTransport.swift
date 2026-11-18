@@ -56,7 +56,7 @@ public final class URLSessionWebSocketTransport: WebSocketTransport {
         }
         let result = await withTaskCancellationHandler {
             await withCheckedContinuation { continuation in
-                delegate.begin(policy: policy, waiter: continuation)
+                delegate.begin(policy: policy, url: url, waiter: continuation)
                 task.resume()
             }
         } onCancel: {

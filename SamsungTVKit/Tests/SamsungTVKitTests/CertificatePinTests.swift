@@ -75,3 +75,36 @@ import Testing
         #expect(PinningDelegate.decide(policy: .require(pinA), presented: nil) == .reject(mismatch: false))
     }
 }
+
+@Suite struct OpenedURLMatchTests {
+    let requested = URL(string: "wss://192.168.1.20:8002/api/v2/channels/samsung.remote.control?name=x")!
+
+    @Test func sameEndpointMatches() {
+        let opened = URL(string: "wss://192.168.1.20:8002/api/v2/channels/samsung.remote.control?name=x")!
+        #expect(PinningDelegate.openedURLMatches(requested: requested, opened: opened))
+    }
+
+    @Test func differentHostDoesNotMatch() {
+        let opened = URL(string: "wss://192.168.1.21:8002/api/v2/channels/samsung.remote.control?name=x")!
+        #expect(!PinningDelegate.openedURLMatches(requested: requested, opened: opened))
+    }
+
+    @Test func plainWebSocketDoesNotMatch() {
+        let opened = URL(string: "ws://192.168.1.20:8002/api/v2/channels/samsung.remote.control?name=x")!
+        #expect(!PinningDelegate.openedURLMatches(requested: requested, opened: opened))
+    }
+
+    @Test func differentPortDoesNotMatch() {
+        let opened = URL(string: "wss://192.168.1.20:8001/api/v2/channels/samsung.remote.control?name=x")!
+        #expect(!PinningDelegate.openedURLMatches(requested: requested, opened: opened))
+    }
+
+    @Test func differentPathDoesNotMatch() {
+        let opened = URL(string: "wss://192.168.1.20:8002/api/v2/other?name=x")!
+        #expect(!PinningDelegate.openedURLMatches(requested: requested, opened: opened))
+    }
+
+    @Test func missingOpenedURLDoesNotMatch() {
+        #expect(!PinningDelegate.openedURLMatches(requested: requested, opened: nil))
+    }
+}

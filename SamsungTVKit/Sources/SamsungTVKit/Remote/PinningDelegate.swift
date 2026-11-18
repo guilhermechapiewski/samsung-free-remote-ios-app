@@ -14,6 +14,7 @@ enum PinDecision: Equatable, Sendable {
 final class PinningDelegate: NSObject, URLSessionWebSocketDelegate, Sendable {
     private struct State {
         var policy: PinPolicy = .require(CertificatePin(sha256: Data())) // fail closed until begin()
+        var requestedURL: URL?
         var acceptedPin: CertificatePin?
         var mismatch = false
         var waiter: CheckedContinuation<Result<CertificatePin, TransportError>, Never>?
@@ -32,12 +33,29 @@ final class PinningDelegate: NSObject, URLSessionWebSocketDelegate, Sendable {
         }
     }
 
-    /// Registers the policy and the waiter for the connection outcome. Must be called before
-    /// the WebSocket task is resumed.
-    func begin(policy: PinPolicy, waiter: CheckedContinuation<Result<CertificatePin, TransportError>, Never>) {
+    /// True only when the socket actually opened on the endpoint that was requested (same scheme,
+    /// host, port and path), so a redirected upgrade can never be trusted on another endpoint's pin.
+    static func openedURLMatches(requested: URL, opened: URL?) -> Bool {
+        guard let opened,
+              let scheme = requested.scheme?.lowercased(), let host = requested.host()?.lowercased()
+        else { return false }
+        return opened.scheme?.lowercased() == scheme
+            && opened.host()?.lowercased() == host
+            && opened.port == requested.port
+            && opened.path() == requested.path()
+    }
+
+    /// Registers the policy, the requested URL and the waiter for the connection outcome. Must be
+    /// called before the WebSocket task is resumed.
+    func begin(
+        policy: PinPolicy,
+        url: URL,
+        waiter: CheckedContinuation<Result<CertificatePin, TransportError>, Never>
+    ) {
         let alreadyFinished = state.withLock { s -> Bool in
             if s.finished { return true }
             s.policy = policy
+            s.requestedURL = url
             s.waiter = waiter
             return false
         }
@@ -91,6 +109,17 @@ final class PinningDelegate: NSObject, URLSessionWebSocketDelegate, Sendable {
         }
     }
 
+    /// Redirects are never followed: the pinned endpoint must be the one that opens.
+    func urlSession(
+        _ session: URLSession,
+        task: URLSessionTask,
+        willPerformHTTPRedirection response: HTTPURLResponse,
+        newRequest request: URLRequest,
+        completionHandler: @escaping @Sendable (URLRequest?) -> Void
+    ) {
+        completionHandler(nil)
+    }
+
     func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: (any Error)?) {
         finish(failure())
     }
@@ -102,8 +131,17 @@ final class PinningDelegate: NSObject, URLSessionWebSocketDelegate, Sendable {
         webSocketTask: URLSessionWebSocketTask,
         didOpenWithProtocol protocol: String?
     ) {
-        // An open without a pin accepted by the challenge above is never trusted.
-        if let pin = state.withLock({ $0.acceptedPin }) {
+        // An open without a pin accepted by the challenge above, or on any endpoint other than
+        // the requested one, is never trusted.
+        let (pin, requested) = state.withLock { ($0.acceptedPin, $0.requestedURL) }
+        guard let requested,
+              Self.openedURLMatches(requested: requested, opened: webSocketTask.currentRequest?.url)
+        else {
+            finish(.failure(.unreachable))
+            webSocketTask.cancel(with: .goingAway, reason: nil)
+            return
+        }
+        if let pin {
             finish(.success(pin))
         } else {
             finish(failure())
