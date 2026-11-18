@@ -30,7 +30,7 @@ public struct HTTPTVInfoFetcher: TVInfoFetching {
 
         var body = Data()
         do {
-            let (bytes, response) = try await session.bytes(for: request)
+            let (bytes, response) = try await session.bytes(for: request, delegate: NoRedirectDelegate())
             guard let http = response as? HTTPURLResponse, http.statusCode == 200 else { throw TVInfoError.unreachable }
             for try await byte in bytes {
                 body.append(byte)
@@ -43,4 +43,12 @@ public struct HTTPTVInfoFetcher: TVInfoFetching {
         }
         return try TVDeviceInfo.decode(body, host: host)
     }
+}
+
+/// Redirects could lead off the LAN; refuse them so a 3xx surfaces as a non-200 response.
+private final class NoRedirectDelegate: NSObject, URLSessionTaskDelegate, Sendable {
+    func urlSession(
+        _ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse,
+        newRequest request: URLRequest
+    ) async -> URLRequest? { nil }
 }

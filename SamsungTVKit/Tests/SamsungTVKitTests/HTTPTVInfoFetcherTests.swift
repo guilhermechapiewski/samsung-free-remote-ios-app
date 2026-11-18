@@ -6,15 +6,17 @@ import Testing
 private enum StubResult: Sendable {
     case response(status: Int, body: Data)
     case failure(URLError.Code)
+    case redirect(to: URL)
 }
 
 private final class StubProtocol: URLProtocol, @unchecked Sendable {
     // Safety: all shared state lives in Mutex-protected statics; instances only touch their own URLProtocol state.
-    private static let state = Mutex<(result: StubResult, requests: [URL])>((.failure(.unknown), []))
+    private static let state = Mutex<(result: StubResult, requests: [URL], timeouts: [TimeInterval])>((.failure(.unknown), [], []))
 
     static func configure(_ result: StubResult) {
-        state.withLock { $0 = (result, []) }
+        state.withLock { $0 = (result, [], []) }
     }
+    static var timeouts: [TimeInterval] { state.withLock { $0.timeouts } }
     static var requests: [URL] { state.withLock { $0.requests } }
 
     static func makeSession() -> URLSession {
@@ -31,6 +33,7 @@ private final class StubProtocol: URLProtocol, @unchecked Sendable {
         let url = request.url!
         let result = Self.state.withLock { s -> StubResult in
             s.requests.append(url)
+            s.timeouts.append(request.timeoutInterval)
             return s.result
         }
         switch result {
@@ -38,6 +41,10 @@ private final class StubProtocol: URLProtocol, @unchecked Sendable {
             let response = HTTPURLResponse(url: url, statusCode: status, httpVersion: nil, headerFields: nil)!
             client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
             client?.urlProtocol(self, didLoad: body)
+            client?.urlProtocolDidFinishLoading(self)
+        case .redirect(let target):
+            let response = HTTPURLResponse(url: url, statusCode: 302, httpVersion: nil, headerFields: ["Location": target.absoluteString])!
+            client?.urlProtocol(self, wasRedirectedTo: URLRequest(url: target), redirectResponse: response)
             client?.urlProtocolDidFinishLoading(self)
         case .failure(let code):
             client?.urlProtocol(self, didFailWithError: URLError(code))
@@ -99,5 +106,23 @@ struct HTTPTVInfoFetcherTests {
         #expect(info.host == "10.0.0.5")
         #expect(info.powerState == .on)
         #expect(StubProtocol.requests.map(\.absoluteString) == ["http://10.0.0.5:8001/api/v2/"])
+    }
+
+    @Test func redirectIsNotFollowed() async {
+        StubProtocol.configure(.redirect(to: URL(string: "http://8.8.8.8/")!))
+        await #expect(throws: TVInfoError.unreachable) {
+            try await makeFetcher().fetchInfo(host: "10.0.0.5")
+        }
+        #expect(StubProtocol.requests.map(\.absoluteString) == ["http://10.0.0.5:8001/api/v2/"])
+    }
+
+    @Test func timeoutIsAppliedToRequest() async throws {
+        StubProtocol.configure(.response(status: 200, body: try fixture("info-on")))
+        _ = try await makeFetcher(timeout: .milliseconds(100)).fetchInfo(host: "10.0.0.5")
+        #expect(abs(StubProtocol.timeouts[0] - 0.1) < 0.001)
+        StubProtocol.configure(.response(status: 200, body: try fixture("info-on")))
+        let defaults = HTTPTVInfoFetcher(session: StubProtocol.makeSession())
+        _ = try await defaults.fetchInfo(host: "10.0.0.5")
+        #expect(StubProtocol.timeouts[0] == 2.0)
     }
 }

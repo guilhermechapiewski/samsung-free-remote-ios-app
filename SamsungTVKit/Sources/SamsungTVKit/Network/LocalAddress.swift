@@ -8,6 +8,7 @@ public enum LocalAddress {
         var octets: [Int] = []
         for part in parts {
             guard (1...3).contains(part.count), part.allSatisfy({ $0.isASCII && $0.isNumber }),
+                  (part == "0" || part.first != "0"),  // leading zeros are octal to inet_aton
                   let value = Int(part), value <= 255 else { return false }
             octets.append(value)
         }

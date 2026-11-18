@@ -7,6 +7,7 @@ import Testing
     ("tv.local", false), ("192.168.1.300", false), ("", false), ("+10.0.0.1", false),
     (" 10.0.0.1", false), ("10.0.0.1 ", false), ("10.0.0", false), ("10.0.0.1.1", false),
     ("::1", false), ("fe80::1", false), ("10.0.0.", false), ("127.0.0.1", false),
+    ("010.0.0.1", false), ("172.016.0.1", false), ("192.168.01.1", false), ("10.0.0.0", true),
 ])
 func isAllowedTable(host: String, expected: Bool) {
     #expect(LocalAddress.isAllowed(host) == expected)
