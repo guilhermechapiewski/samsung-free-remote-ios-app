@@ -14,7 +14,7 @@ public struct SSDPSearcher: CandidateSource {
         self.repeats = max(1, repeats)
     }
 
-    public func candidates() -> AsyncStream<String> {
+    public func candidates() -> AsyncStream<CandidateEvent> {
         let duration = duration, repeats = repeats
         return AsyncStream { continuation in
             let log = Self.log
@@ -32,7 +32,7 @@ public struct SSDPSearcher: CandidateSource {
                 guard let content, let source = Self.ipv4String(message.remoteEndpoint),
                       let host = SSDP.host(fromResponse: content), host == source,
                       seen.withLock({ $0.insert(host).inserted }) else { return }
-                continuation.yield(host)
+                continuation.yield(.host(host))
             }
             let sent = Mutex(false)
             group.stateUpdateHandler = { state in

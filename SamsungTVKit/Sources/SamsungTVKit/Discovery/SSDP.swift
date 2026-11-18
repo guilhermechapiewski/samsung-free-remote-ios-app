@@ -1,8 +1,16 @@
 import Foundation
 
-/// A source of candidate TV hosts (IPv4 literals). The stream finishes when the source stops.
+/// Something a discovery source reports.
+public enum CandidateEvent: Equatable, Sendable {
+    /// A candidate TV host (IPv4 literal).
+    case host(String)
+    /// The system refused Local Network access, so this source cannot find anything.
+    case localNetworkDenied
+}
+
+/// A source of candidate TV hosts. The stream finishes when the source stops.
 public protocol CandidateSource: Sendable {
-    func candidates() -> AsyncStream<String>
+    func candidates() -> AsyncStream<CandidateEvent>
 }
 
 /// SSDP request building and response parsing.

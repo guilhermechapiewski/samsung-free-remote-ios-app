@@ -1,5 +1,6 @@
 import Foundation
 import Network
+import dnssd
 import os
 import Synchronization
 
@@ -12,7 +13,7 @@ public enum BonjourTXT {
 }
 
 /// Browses `_airplay._tcp`, keeps Samsung results and resolves each to an IPv4 host.
-/// Failures (e.g. Local Network permission denied) are logged and end the stream.
+/// A Local Network permission denial yields `.localNetworkDenied` once; failures are logged and end the stream.
 public struct BonjourSamsungBrowser: CandidateSource {
     private static let log = Logger(subsystem: "SamsungTVKit", category: "Bonjour")
     let duration: Duration
@@ -27,7 +28,7 @@ public struct BonjourSamsungBrowser: CandidateSource {
         self.allowLoopback = allowLoopback
     }
 
-    public func candidates() -> AsyncStream<String> {
+    public func candidates() -> AsyncStream<CandidateEvent> {
         let duration = duration, allowLoopback = allowLoopback
         return AsyncStream { continuation in
             let log = Self.log
@@ -37,9 +38,13 @@ public struct BonjourSamsungBrowser: CandidateSource {
 
             browser.browseResultsChangedHandler = { _, changes in
                 for change in changes {
-                    guard case .added(let result) = change,
-                          case .bonjour(let record) = result.metadata,
-                          BonjourTXT.isSamsung(record.dictionary) else { continue }
+                    let result: NWBrowser.Result
+                    switch change {
+                    case .added(let added): result = added
+                    case .changed(_, let new, _): result = new
+                    default: continue
+                    }
+                    guard case .bonjour(let record) = result.metadata, BonjourTXT.isSamsung(record.dictionary) else { continue }
                     let key = "\(result.endpoint)"
                     let isNew = state.lock.withLock { s in
                         guard !s.finished, s.resolving.insert(key).inserted else { return false }
@@ -49,14 +54,23 @@ public struct BonjourSamsungBrowser: CandidateSource {
                     Self.resolve(result.endpoint, queue: queue, state: state) { host in
                         guard LocalAddress.isAllowed(host, allowLoopback: allowLoopback),
                               state.lock.withLock({ $0.yielded.insert(host).inserted }) else { return }
-                        continuation.yield(host)
+                        continuation.yield(.host(host))
                     }
                 }
             }
+            let reportDenial: @Sendable (NWError) -> Void = { error in
+                guard Self.isLocalNetworkDenied(error),
+                      state.lock.withLock({ s in let was = s.reportedDenial; s.reportedDenial = true; return !was }) else { return }
+                continuation.yield(.localNetworkDenied)
+            }
             browser.stateUpdateHandler = { s in
                 switch s {
+                case .waiting(let error):
+                    log.error("Bonjour browser waiting: \(error.localizedDescription, privacy: .public)")
+                    reportDenial(error)
                 case .failed(let error):
                     log.error("Bonjour browser failed: \(error.localizedDescription, privacy: .public)")
+                    reportDenial(error)
                     continuation.finish()
                 case .cancelled:
                     continuation.finish()
@@ -81,6 +95,12 @@ public struct BonjourSamsungBrowser: CandidateSource {
         }
     }
 
+    /// Whether `error` means the system denied Local Network access (`kDNSServiceErr_PolicyDenied`, −65570).
+    static func isLocalNetworkDenied(_ error: NWError) -> Bool {
+        guard case .dns(let code) = error else { return false }
+        return code == DNSServiceErrorType(kDNSServiceErr_PolicyDenied)
+    }
+
     /// Mutex-guarded browse state (a class because `Mutex` is noncopyable).
     private final class Shared: Sendable {
         let lock = Mutex(State())
@@ -88,6 +108,7 @@ public struct BonjourSamsungBrowser: CandidateSource {
 
     private struct State {
         var finished = false
+        var reportedDenial = false
         var resolving: Set<String> = []
         var yielded: Set<String> = []
         var connections: [NWConnection] = []
