@@ -1,7 +1,7 @@
 # Samsung TV Remote for iPhone — Design
 
 Date: 2026-11-18
-Status: Draft for owner approval
+Status: Approved by owner 2026-11-18
 
 ## 1. Intent
 
@@ -74,23 +74,28 @@ and reliably, including turning the TV on.
   The broadcast address for Wake-on-LAN is computed from the active Wi-Fi
   interface's address and netmask (never assume 192.168.1.x or /24); discovery
   never relies on a fixed IP range; behaviour must not depend on the specific
-  model strings seen in §4. The owner's network data appears only in this doc
-  and in anonymised test fixtures (ids/MACs/serials replaced).
-- Signing: Apple Developer Team ID `2JNHX2X73J` (owner's paid account). Kept in
-  a git-ignored `Config/Local.xcconfig`, with a committed
-  `Local.example.xcconfig` so contributors can sign with their own team.
+  model strings of the test TVs. The owner's network and TV details live only
+  in the owner's private notes repo; test fixtures in this repo are anonymised
+  (names, ids, MACs, serials, IPs replaced).
+- **Privacy of the public repo**: no personal information about the owner, their
+  home, network or devices, and no signing identifiers, in any committed file.
+- Signing: the owner's Team ID and bundle ID live in a git-ignored
+  `Config/Local.xcconfig` (backed up in the private notes repo), with a
+  committed `Local.example.xcconfig` so contributors can sign with their own team.
 
-## 4. Owner's TVs (test fleet, scanned 2026-11-18)
+## 4. Test TVs
 
-| Reported name | Model | Year / platform | IP (DHCP) | Notes |
-|---|---|---|---|---|
-| `85&quot; Micro RGB` | MRN85R95HAFXZA (Micro RGB R95H) | 2026, `26_RSM_MTV` | 192.168.1.94 | Wi-Fi. Reported `PowerState: ""` while asleep, `"on"` when on. Answers SSDP. |
-| `Samsung QN90BA 85` | QN85QN90BAFXZA (Neo QLED QN90B) | 2022, `22_PONTUSM_QTV` | 192.168.1.238 | Wi-Fi. **Did not answer SSDP** in two scans; found via AirPlay Bonjour and port 8001. |
-| `65&quot; The Terrace` | QN65LST9DAFXZA (The Terrace outdoor) | 2024, `24_PONTUSM_QTV_LTR` | 192.168.1.114 | Wi-Fi. Answers SSDP. |
+Development and manual testing use three Samsung Tizen TVs from **2022, 2024
+and 2026** (details in the owner's private notes). Observations that shape the
+design:
 
-All three: Tizen, `TokenAuthSupport: true`, ports 8001 and 8002 open,
-`remote_available: true`, AirPlay advertised with `manufacturer=Samsung`.
-Names arrive HTML-entity-encoded and must be decoded.
+- All support token pairing, have ports 8001 and 8002 open, report
+  `remote_available: true`, and advertise AirPlay with `manufacturer=Samsung`.
+- **One (2022) never answered SSDP** in repeated scans but was found via its
+  AirPlay Bonjour advertisement and port 8001 → discovery must combine methods.
+- One (2026) reported `PowerState: ""` while asleep and `"on"` when on →
+  "reachable but asleep" is detectable.
+- Names arrive HTML-entity-encoded (e.g. `&quot;` for `"`) and must be decoded.
 
 ## 5. Approaches considered
 
@@ -130,7 +135,7 @@ foreground, and merge results:
 
 1. **Bonjour**: `NWBrowser` for `_airplay._tcp`; keep results whose TXT
    `manufacturer` is `Samsung`; resolve to an IP. (Needs no multicast
-   entitlement. This is what found the QN90B.)
+   entitlement. This is what found the 2022 test TV.)
 2. **SSDP** (requires multicast entitlement): M-SEARCH for
    `urn:samsung.com:device:RemoteControlReceiver:1` and
    `urn:dial-multiscreen-org:service:dial:1`, sent 2–3 times; collect responders' IPs.
@@ -324,8 +329,7 @@ Network permissions are needed), and an explicit **Requirements** section:
 
 ## 7a. Calls made by the designer (owner can override)
 
-- Bundle ID `com.chapiewski.FreeRemote` (set in the git-ignored xcconfig, so a
-  wrong guess is a one-line change before the first App Store Connect record).
+- Bundle ID: chosen by the owner, kept in the git-ignored xcconfig.
 - Manual "Add TV by IP" fallback; TOFU certificate pinning; tokens not synced.
 - Hardware volume buttons dropped (no supported API).
 - Testing on the real TVs is done by the builder from the owner's Mac on the
