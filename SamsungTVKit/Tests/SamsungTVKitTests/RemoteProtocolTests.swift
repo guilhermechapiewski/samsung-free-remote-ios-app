@@ -7,24 +7,31 @@ import Foundation
         try #require(try JSONSerialization.jsonObject(with: data) as? NSDictionary)
     }
 
-    @Test func channelURLWithoutToken() {
-        let url = RemoteProtocol.channelURL(host: "10.0.0.5", token: nil)
+    @Test func channelURLWithoutToken() throws {
+        let url = try #require(RemoteProtocol.channelURL(host: "10.0.0.5", token: nil))
         #expect(url.absoluteString == "wss://10.0.0.5:8002/api/v2/channels/samsung.remote.control?name=RnJlZSBSZW1vdGU=")
     }
 
-    @Test func channelURLWithToken() {
-        let url = RemoteProtocol.channelURL(host: "10.0.0.5", token: "abc")
+    @Test func channelURLWithToken() throws {
+        let url = try #require(RemoteProtocol.channelURL(host: "10.0.0.5", token: "abc"))
         #expect(url.absoluteString == "wss://10.0.0.5:8002/api/v2/channels/samsung.remote.control?name=RnJlZSBSZW1vdGU=&token=abc")
     }
 
-    @Test func channelURLPercentEncodesToken() {
-        let url = RemoteProtocol.channelURL(host: "10.0.0.5", token: "a b&c=d+/")
+    @Test func channelURLPercentEncodesToken() throws {
+        let url = try #require(RemoteProtocol.channelURL(host: "10.0.0.5", token: "a b&c=d+/"))
         #expect(url.absoluteString.hasSuffix("&token=a%20b%26c%3Dd%2B%2F"))
     }
 
-    @Test func channelURLIgnoresEmptyToken() {
-        let url = RemoteProtocol.channelURL(host: "10.0.0.5", token: "")
+    @Test func channelURLIgnoresEmptyToken() throws {
+        let url = try #require(RemoteProtocol.channelURL(host: "10.0.0.5", token: ""))
         #expect(!url.absoluteString.contains("token"))
+    }
+
+    @Test func channelURLRejectsInvalidHosts() {
+        for host in ["", "a b", "x/y", "10.0.0.5:80", "::1", "tv.local", "8.8.8.8"] {
+            #expect(RemoteProtocol.channelURL(host: host, token: nil) == nil, "\(host)")
+        }
+        #expect(RemoteProtocol.channelURL(host: "127.0.0.1", token: nil) != nil)
     }
 
     @Test func pairingName() {

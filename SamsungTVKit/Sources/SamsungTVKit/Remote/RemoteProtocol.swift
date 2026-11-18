@@ -15,8 +15,10 @@ public enum RemoteProtocol {
 
     static let maxEventBytes = 256 * 1024
 
-    /// `host` must be a validated dotted-quad IPv4 address (caller's responsibility).
-    public static func channelURL(host: String, token: String?) -> URL {
+    /// Returns nil unless `host` is an allowed local IPv4 address (loopback permitted at this layer;
+    /// production callers are guarded upstream).
+    public static func channelURL(host: String, token: String?) -> URL? {
+        guard LocalAddress.isAllowed(host, allowLoopback: true) else { return nil }
         var components = URLComponents()
         components.scheme = "wss"
         components.host = host
@@ -28,11 +30,12 @@ public enum RemoteProtocol {
         if let token, !token.isEmpty {
             var allowed = CharacterSet.urlQueryAllowed
             allowed.remove(charactersIn: "&=+/#?")
-            query += "&token=" + (token.addingPercentEncoding(withAllowedCharacters: allowed) ?? "")
+            if let encoded = token.addingPercentEncoding(withAllowedCharacters: allowed) {
+                query += "&token=" + encoded
+            }
         }
         components.percentEncodedQuery = query
-        // Components are built from fixed parts; a non-IPv4 host is a caller precondition violation.
-        return components.url!
+        return components.url
     }
 
     public static func key(_ key: RemoteKey, _ action: KeyAction) -> Data {
