@@ -50,7 +50,7 @@ public enum WakeOnLAN {
                 try? await Task.sleep(for: .milliseconds(100))
                 if Task.isCancelled { return }
             }
-            let errno = sendOnce(packet, to: destinations, interfaceName: via.name)
+            let errno = sendOnce(packet, to: destinations, interfaceName: via.name, broadcast: broadcast)
             if errno != 0 {
                 log.error("Wake-on-LAN send failed (errno \(errno, privacy: .public))")
             }
@@ -58,14 +58,17 @@ public enum WakeOnLAN {
     }
 
     /// Sends one round on a fresh BSD UDP socket. Returns 0 or the first errno encountered.
-    private static func sendOnce(_ packet: Data, to destinations: [String], interfaceName: String) -> Int32 {
+    private static func sendOnce(
+        _ packet: Data, to destinations: [String], interfaceName: String, broadcast: Bool
+    ) -> Int32 {
         let fd = socket(AF_INET, SOCK_DGRAM, 0)
         guard fd >= 0 else { return Darwin.errno }
         defer { close(fd) }
 
+        var firstError: Int32 = 0
         var on: Int32 = 1
-        guard setsockopt(fd, SOL_SOCKET, SO_BROADCAST, &on, socklen_t(MemoryLayout<Int32>.size)) == 0 else {
-            return Darwin.errno
+        if broadcast, setsockopt(fd, SOL_SOCKET, SO_BROADCAST, &on, socklen_t(MemoryLayout<Int32>.size)) != 0 {
+            firstError = Darwin.errno // best effort: the unicast destination can still be sent
         }
         var index = if_nametoindex(interfaceName)
         if index != 0 {
@@ -73,7 +76,6 @@ public enum WakeOnLAN {
             _ = setsockopt(fd, IPPROTO_IP, IP_BOUND_IF, &index, socklen_t(MemoryLayout<UInt32>.size))
         }
 
-        var firstError: Int32 = 0
         for host in destinations {
             var addr = sockaddr_in()
             addr.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)

@@ -3,7 +3,7 @@
 The App Store Connect copy for Free Remote for Samsung TV. Keep it in sync with what the app actually
 supports. Each field's text is the content under its heading (field limits in brackets).
 
-**Release stages.** Version 1.0 ships without Apple's multicast networking entitlement: TVs are discovered
+**Release stages** (internal note; do not paste into App Store Connect). Version 1.0 ships without Apple's multicast networking entitlement: TVs are discovered
 over Bonjour (AirPlay) and the app can send only a direct (unicast) wake packet, so turning on a TV that has
 been off for a while may not work. When the entitlement is granted and a build with
 `FREE_REMOTE_MULTICAST = YES` ships, apply the "With the multicast entitlement" changes at the end of this

@@ -133,6 +133,7 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = F0000000000000000001B002 /* Build configuration list for PBXNativeTarget "FreeRemote" */;
 			buildPhases = (
+				F0000000000000000001F104 /* Check entitlements */,
 				F0000000000000000001F102 /* Sources */,
 				F0000000000000000001F101 /* Frameworks */,
 				F0000000000000000001F103 /* Resources */,
@@ -267,6 +268,29 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		F0000000000000000001F104 /* Check entitlements */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/scripts/check-entitlements.sh",
+			);
+			name = "Check entitlements";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "exec /bin/sh \"$SRCROOT/scripts/check-entitlements.sh\"\n";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		F0000000000000000001F102 /* Sources */ = {

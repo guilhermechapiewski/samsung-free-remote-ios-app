@@ -52,7 +52,7 @@ struct AppEnvironment {
     var userDefaults: UserDefaults
     /// Whether this build has the multicast networking entitlement (SSDP discovery and broadcast
     /// Wake-on-LAN). Without it, discovery uses Bonjour only and waking sends a unicast packet only.
-    var multicastEnabled = true
+    var multicastEnabled = false
 }
 
 extension AppEnvironment {
@@ -96,7 +96,8 @@ extension AppEnvironment {
     }
 
     /// `FRMulticastEnabled` in Info.plist, set from the `FREE_REMOTE_MULTICAST` build setting, which
-    /// also picks the entitlements file (see Config/Base.xcconfig), so the two cannot disagree.
+    /// also picks the entitlements file (see Config/Base.xcconfig); the "Check entitlements" build
+    /// phase fails the build if the two disagree.
     static var buildHasMulticastEntitlement: Bool {
         Bundle.main.object(forInfoDictionaryKey: "FRMulticastEnabled") as? String == "YES"
     }

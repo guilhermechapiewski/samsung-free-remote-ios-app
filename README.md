@@ -11,7 +11,8 @@ More screenshots: [`AppStore/screenshots/`](AppStore/screenshots/).
 
 - Automatic discovery of Samsung TVs on the local network (Bonjour, plus SSDP in builds with the multicast
   entitlement), and "Add TV by IP address"
-- Power on/off (state-aware; Wake-on-LAN from deep standby), volume, mute, channel up/down
+- Power on/off (state-aware; wakes TVs from network standby; Wake-on-LAN from deep standby in builds with the
+  multicast entitlement), volume, mute, channel up/down
 - Circular D-pad with OK, Back, Home, Play/Pause
 - Source, with a long press for HDMI 1–4
 - Number pad, and text entry when the TV shows an on-screen keyboard

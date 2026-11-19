@@ -622,9 +622,9 @@ private let tvC = info("uuid:c", host: "192.168.1.12", name: "Alpha", model: "QE
             + "Also check that “Power On with Mobile” is on in the TV's network settings.")
     }
 
-    @Test func liveBuildFlagMatchesEntitlementsDefault() {
-        // The test host is built without FREE_REMOTE_MULTICAST = YES unless a Local.xcconfig opts in;
-        // the flag must be readable either way, and absent/NO means no entitlement.
+    @Test func infoPlistMulticastFlagIsExpanded() {
+        // FRMulticastEnabled must be the expanded FREE_REMOTE_MULTICAST build setting (YES or NO);
+        // whether it matches the entitlements is enforced by the "Check entitlements" build phase.
         let raw = Bundle.main.object(forInfoDictionaryKey: "FRMulticastEnabled") as? String
         #expect(raw == "YES" || raw == "NO")
         #expect(AppEnvironment.buildHasMulticastEntitlement == (raw == "YES"))

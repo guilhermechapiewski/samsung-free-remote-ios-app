@@ -14,8 +14,8 @@ Paste the "Notes for the reviewer" section into App Store Connect > App Review I
         `Config/Local.xcconfig`; paste the notes below as they are.
       - **Once Apple grants the multicast entitlement:** set `FREE_REMOTE_MULTICAST = YES` in
         `Config/Local.xcconfig` (this also signs with `App/FreeRemote/FreeRemote+Multicast.entitlements`),
-        then in the notes below delete the "Version 1.0" paragraph and replace it with the "With the multicast
-        entitlement" paragraph.
+        then in the notes below replace the "Version 1.0" paragraph with the text in the last section
+        of this file.
 
 ## Notes for the reviewer
 
@@ -47,13 +47,6 @@ stays on the local network; the app only contacts private (RFC 1918) or link-loc
 Version 1.0: this build does not use the multicast networking entitlement. It discovers TVs over Bonjour
 only and sends the Wake-on-LAN packet directly to the TV's last known address.
 
-<!-- With the multicast entitlement (replace the "Version 1.0" paragraph above with this one):
-This build uses the multicast networking entitlement (`com.apple.developer.networking.multicast`) for:
-- SSDP discovery: an `M-SEARCH` to the standard multicast group finds Samsung TVs that do not advertise over
-  Bonjour.
-- Wake-on-LAN: when the TV is in deep standby and not answering, the app also broadcasts the "magic packet"
-  on the local subnet to turn it on.
--->
 
 **Encryption / export compliance**
 
@@ -68,3 +61,13 @@ No data is collected. TV pairing tokens are stored in the iPhone's Keychain; the
 device; the optional names users give their TVs sync through the user's own iCloud key-value storage.
 
 Not affiliated with or endorsed by Samsung. Samsung and Tizen are trademarks of Samsung Electronics Co., Ltd.
+
+## With the multicast entitlement (not part of the 1.0 notes)
+
+Once the build has `FREE_REMOTE_MULTICAST = YES`, replace the "Version 1.0" paragraph in the notes above with:
+
+This build uses the multicast networking entitlement (`com.apple.developer.networking.multicast`) for:
+- SSDP discovery: an `M-SEARCH` to the standard multicast group finds Samsung TVs that do not advertise over
+  Bonjour.
+- Wake-on-LAN: when the TV is in deep standby and not answering, the app also broadcasts the "magic packet"
+  on the local subnet to turn it on.
