@@ -125,8 +125,11 @@ struct RemoteSessionTests {
         var states = t.session.states.makeAsyncIterator()
         await t.session.connect()
         #expect(await states.next() == .connecting)
+        await t.clock.waitForSleepers(2)
+        t.clock.advance(by: .seconds(3))
+        #expect(await states.next() == .awaitingApproval) // the TV may be asking to Allow again
         await t.clock.waitForSleepers(1)
-        t.clock.advance(by: .seconds(30))
+        t.clock.advance(by: .seconds(27))
         #expect(await states.next() == .failed(.approvalTimedOut))
         #expect(t.store.load(tvID) == TVCredentials(token: "stored", pin: pin))
 
@@ -137,6 +140,38 @@ struct RemoteSessionTests {
         #expect(t.clock.sleeperCount == 0)
         t.clock.advance(by: .seconds(60))
         #expect(await t.session.currentState == .connected)
+    }
+
+    @Test func revokedTokenAwaitsApprovalAfterThreeSecondsWithinOverallTimeout() async {
+        // A TV that revoked the token shows Allow again instead of sending ms.channel.connect.
+        let t = Self.paired()
+        var states = t.session.states.makeAsyncIterator()
+        await t.session.connect()
+        #expect(await states.next() == .connecting)
+        await t.clock.waitForSleepers(2)
+        #expect(t.clock.requestedSleeps.sorted() == [.seconds(3), .seconds(30)])
+        t.clock.advance(by: .milliseconds(2999))
+        #expect(await t.session.currentState == .connecting)
+        t.clock.advance(by: .milliseconds(1))
+        #expect(await states.next() == .awaitingApproval)
+        await t.clock.waitForSleepers(1)
+        t.clock.advance(by: .seconds(27))
+        #expect(await states.next() == .failed(.approvalTimedOut))
+        #expect(t.clock.sleeperCount == 0)
+    }
+
+    @Test func revokedTokenApprovedWhileAwaitingConnects() async {
+        let t = Self.paired()
+        var states = t.session.states.makeAsyncIterator()
+        await t.session.connect()
+        #expect(await states.next() == .connecting)
+        await t.clock.waitForSleepers(2)
+        t.clock.advance(by: .seconds(3))
+        #expect(await states.next() == .awaitingApproval)
+        await t.factory.transport(0).push(connectEvent)
+        #expect(await states.next() == .connected)
+        #expect(t.store.load(tvID)?.token == "12345678")
+        #expect(t.clock.sleeperCount == 0)
     }
 
     @Test func tvTimeOutEventReportsApprovalTimedOut() async {
@@ -378,12 +413,35 @@ struct RemoteSessionTests {
         }
     }
 
+    @Test func ensuringConnectionAfterDisconnectThrowsWithoutReconnecting() async throws {
+        // The owner closed the session: a late power key must not bring it back.
+        let t = Self.paired()
+        var states = t.session.states.makeAsyncIterator()
+        _ = await t.connectPaired(&states)
+        await t.session.disconnect()
+        #expect(await states.next() == .idle)
+
+        await #expect(throws: SessionError.unreachable) {
+            try await t.session.sendEnsuringConnection(.power, timeout: .seconds(3))
+        }
+        #expect(t.factory.count == 1)
+        #expect(await t.session.currentState == .idle)
+
+        // Only an explicit connect() revives it.
+        await t.session.connect()
+        #expect(await states.next() == .connecting)
+        await t.factory.transport(1).push(connectEventNoToken)
+        #expect(await states.next() == .connected)
+        try await t.session.sendEnsuringConnection(.power, timeout: .seconds(3))
+        #expect(await t.factory.transport(1).sent == [RemoteProtocol.key(.power, .click)])
+    }
+
     @Test func ensuringConnectionTimesOut() async {
         let t = Self.paired()
         let send = Task { try await t.session.sendEnsuringConnection(.power, timeout: .seconds(3)) }
         let transport = await t.factory.transport(0)
-        await t.clock.waitForSleepers(2) // approval timer + send timeout
-        #expect(t.clock.requestedSleeps.sorted() == [.seconds(3), .seconds(30)])
+        await t.clock.waitForSleepers(3) // token-approval hint + approval timer + send timeout
+        #expect(t.clock.requestedSleeps.sorted() == [.seconds(3), .seconds(3), .seconds(30)])
         t.clock.advance(by: .seconds(3))
         await #expect(throws: SessionError.unreachable) { try await send.value }
         #expect(transport.sent.isEmpty)

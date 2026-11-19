@@ -17,6 +17,9 @@ public enum SessionError: Error, Equatable, Sendable {
 /// deallocated. A running connection keeps the session alive; call `disconnect()` to stop it.
 public actor RemoteSession {
     static let maxReconnectFailures = 5
+    /// With a stored token the TV normally accepts at once; if it has not after this long, it has
+    /// probably revoked the token and is showing its Allow prompt.
+    static let tokenApprovalHint: Duration = .seconds(3)
     private static let log = Logger(subsystem: "SamsungTVKit", category: "RemoteSession")
 
     private enum AttemptOutcome {
@@ -49,6 +52,10 @@ public actor RemoteSession {
     private var attemptID = 0
     private var runner: Task<Void, Never>?
     private var approvalTimer: Task<Void, Never>?
+    private var approvalHintTimer: Task<Void, Never>?
+    /// Set by `disconnect()` and cleared by `connect()`: the owner stopped the session, so
+    /// `sendEnsuringConnection` must not start it again.
+    private var stoppedByOwner = false
     private var transport: (any WebSocketTransport)?
 
     /// Callers of `sendEnsuringConnection` suspended until the state settles; resumed on every
@@ -77,6 +84,7 @@ public actor RemoteSession {
 
     deinit {
         approvalTimer?.cancel()
+        approvalHintTimer?.cancel()
         stateContinuation.finish()
         keyboardContinuation.finish()
     }
@@ -91,13 +99,16 @@ public actor RemoteSession {
     /// afresh. Returns once the attempt is under way; follow progress through `states`.
     public func connect() async {
         guard runner == nil else { return }
+        stoppedByOwner = false
         generation += 1
         let gen = generation
         runner = Task { await self.run(gen) }
     }
 
-    /// Stops the connection and any pending reconnect; emits `.idle`.
+    /// Stops the connection and any pending reconnect; emits `.idle`. Afterwards only `connect()`
+    /// starts the session again (`sendEnsuringConnection` throws `.unreachable`).
     public func disconnect() async {
+        stoppedByOwner = true
         await stop(.idle)
     }
 
@@ -106,8 +117,10 @@ public actor RemoteSession {
     }
 
     /// Sends `key`, first connecting if the session is idle or failed and waiting (up to `timeout`)
-    /// for `.connected`. Throws the session's failure, or `.unreachable` on timeout or disconnect.
+    /// for `.connected`. Throws the session's failure, or `.unreachable` on timeout or disconnect,
+    /// and never reconnects a session its owner disconnected.
     public func sendEnsuringConnection(_ key: RemoteKey, timeout: Duration) async throws(SessionError) {
+        if stoppedByOwner { throw .unreachable }
         if currentState != .connected {
             try await waitUntilConnected(timeout: timeout)
         }
@@ -189,6 +202,7 @@ public actor RemoteSession {
         if stored?.token == nil { setState(.awaitingApproval) }
         attemptID += 1
         startApprovalTimer(gen: gen, attempt: attemptID)
+        if stored?.token != nil { startApprovalHintTimer(gen: gen, attempt: attemptID) }
 
         var token = stored?.token
         var reachedConnected = false
@@ -333,9 +347,31 @@ public actor RemoteSession {
         await stop(.failed(.approvalTimedOut))
     }
 
+    /// With a stored token, reports `.awaitingApproval` if the TV has not accepted the connection
+    /// within `tokenApprovalHint` (the overall `approvalTimeout` still applies).
+    private func startApprovalHintTimer(gen: Int, attempt: Int) {
+        approvalHintTimer?.cancel()
+        let clock = clock
+        approvalHintTimer = Task { [weak self] in
+            do {
+                try await clock.sleep(for: Self.tokenApprovalHint)
+            } catch {
+                return
+            }
+            await self?.approvalHintTimerFired(gen: gen, attempt: attempt)
+        }
+    }
+
+    private func approvalHintTimerFired(gen: Int, attempt: Int) {
+        guard gen == generation, attempt == attemptID, currentState == .connecting else { return }
+        setState(.awaitingApproval)
+    }
+
     private func cancelApprovalTimer() {
         approvalTimer?.cancel()
         approvalTimer = nil
+        approvalHintTimer?.cancel()
+        approvalHintTimer = nil
     }
 
     // MARK: - Emission
