@@ -144,6 +144,9 @@ final class PinningDelegate: NSObject, URLSessionWebSocketDelegate, Sendable {
     ) {
         // An open without a pin accepted by the challenge above, or on any endpoint other than
         // the requested one, is never trusted.
+        // Falling back to `originalRequest` when `currentRequest` is nil is safe: redirects are
+        // refused, so the two can only differ if the task was redirected (which it cannot be), and
+        // an accepted pin from the challenge is still required below before the open is trusted.
         let (pin, requested) = state.withLock { ($0.acceptedPin, $0.requestedURL) }
         guard let requested,
               Self.openedURLMatches(
