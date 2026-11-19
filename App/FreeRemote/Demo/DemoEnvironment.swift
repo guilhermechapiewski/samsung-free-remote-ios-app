@@ -167,7 +167,12 @@ private final class DemoSession: RemoteSessionProtocol {
 }
 
 private struct DemoPower: PowerToggling {
-    func togglePower(tv: KnownTV, sender: any PowerKeySending) async -> PowerOutcome? { .turnedOff }
+    func togglePower(
+        tv: KnownTV, sender: any PowerKeySending, onPlan: @Sendable (PowerAction) async -> Void
+    ) async -> PowerOutcome? {
+        await onPlan(.turnOff)
+        return .turnedOff
+    }
 }
 
 /// No TV answers at a typed-in address in demo mode.

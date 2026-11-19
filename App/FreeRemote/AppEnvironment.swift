@@ -17,9 +17,12 @@ protocol RemoteSessionProtocol: PowerKeySending {
 
 extension RemoteSession: RemoteSessionProtocol {}
 
-/// The state-aware power toggle (`PowerController` conforms).
+/// The state-aware power toggle (`PowerController` conforms). `onPlan` is told what the toggle
+/// will do once the TV's power state is known.
 protocol PowerToggling: Sendable {
-    func togglePower(tv: KnownTV, sender: any PowerKeySending) async -> PowerOutcome?
+    func togglePower(
+        tv: KnownTV, sender: any PowerKeySending, onPlan: @Sendable (PowerAction) async -> Void
+    ) async -> PowerOutcome?
 }
 
 extension PowerController: PowerToggling {}

@@ -11,6 +11,7 @@ struct AddTVSheet: View {
     @State private var address = ""
     @State private var error: String?
     @State private var adding = false
+    @State private var addTask: Task<Void, Never>?
     @FocusState private var focused: Bool
 
     var body: some View {
@@ -40,7 +41,10 @@ struct AddTVSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button("Cancel") {
+                        addTask?.cancel()
+                        dismiss()
+                    }
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     if adding {
@@ -52,6 +56,8 @@ struct AddTVSheet: View {
                 }
             }
             .onAppear { focused = true }
+            // Swiped away mid-request: the TV must not be added and selected behind the user's back.
+            .onDisappear { addTask?.cancel() }
         }
     }
 
@@ -62,9 +68,10 @@ struct AddTVSheet: View {
             return
         }
         adding = true
-        Task {
+        addTask = Task {
             let added = await model.addManually(host: host)
             adding = false
+            guard !Task.isCancelled else { return }
             if added {
                 dismiss()
             } else {

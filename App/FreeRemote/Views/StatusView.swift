@@ -20,23 +20,6 @@ struct StatusView: View {
             .accessibilityHidden(text == nil)
             .accessibilityIdentifier("status")
     }
-
-    /// The model's transient message, else a short explanation of the screen state; nil when the
-    /// selected TV is connected and there is nothing to explain.
-    static func text(screen: ScreenState, isConnected: Bool, statusMessage: String?) -> String? {
-        if let statusMessage { return statusMessage }
-        switch screen {
-        case .ready: return isConnected ? nil : "Connecting…"
-        case .noWiFi: return "Not connected to Wi-Fi"
-        case .localNetworkDenied: return "Local Network access is turned off"
-        case .searching: return "Searching for TVs…"
-        case .noTVs: return "No TVs found"
-        case .chooseTV: return "Choose a TV"
-        case .pairing: return "Pairing with the TV…"
-        case .pairingDenied: return "The TV blocked this iPhone"
-        case .identityChanged: return "The TV's security identity changed"
-        }
-    }
 }
 
 /// Takes the remote's place when there is no TV to control: why, and what to do about it.
@@ -163,7 +146,7 @@ struct StateCard: View {
 
 #Preview {
     VStack(spacing: 20) {
-        StatusView(text: StatusView.text(screen: .searching, isConnected: false, statusMessage: nil))
+        StatusView(text: AppModel.screenStatusText(.searching))
         StatusView(text: AppModel.unreachableMessage)
     }
     .padding()

@@ -43,8 +43,7 @@ struct RemoteView: View {
             TVPicker(onRename: onRename, onForget: onForget, onAddTV: onAddTV)
             Spacer(minLength: 4)
             topRow
-            StatusView(text: StatusView.text(screen: model.screen, isConnected: model.isConnected,
-                                             statusMessage: model.statusMessage))
+            StatusView(text: model.statusText)
             DPad(onBegin: model.beginHold, onEnd: model.endHold, onPress: model.press)
                 .disabled(!availability.controls)
                 .dynamicTypeSize(...DynamicTypeSize.xxxLarge)

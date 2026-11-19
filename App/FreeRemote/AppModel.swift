@@ -21,6 +21,11 @@ enum ScreenState: Equatable {
     case noWiFi, localNetworkDenied, searching, noTVs, chooseTV, ready, pairing, pairingDenied, identityChanged
 }
 
+/// What a running power toggle is doing, as decided by the power planner.
+enum PowerDirection: Equatable {
+    case turningOn, turningOff
+}
+
 /// The app's state and actions: discovery, the known TVs, the selected TV's session, power and
 /// hold-to-repeat. Every dependency comes from the `AppEnvironment`.
 @MainActor
@@ -41,6 +46,10 @@ final class AppModel {
         "Couldn't reach the TV to change its power. Make sure it's on the same Wi-Fi network, then try again."
     static let sendFailedMessage = "The TV didn't receive that. Reconnecting…"
     static let turnedOffMessage = "The TV is off. Press Power to turn it on."
+    /// While Local Network access looks denied, scan again this often (e.g. the user is still
+    /// answering the permission prompt), up to `deniedRetryLimit` times.
+    static let deniedRetryInterval: Duration = .seconds(3)
+    static let deniedRetryLimit = 20
 
     private static let log = Logger(subsystem: "FreeRemote", category: "AppModel")
 
@@ -48,6 +57,8 @@ final class AppModel {
     private(set) var selectedID: TVID?
     /// A power toggle is in flight for the selected TV.
     var powerBusy: Bool { selectedID.map(powerBusyTVs.contains) ?? false }
+    /// What the selected TV's power toggle is doing, once the TV's state has been checked.
+    var powerDirection: PowerDirection? { selectedID.flatMap { powerDirections[$0] } }
     /// The TV is showing its on-screen keyboard and wants text.
     private(set) var keyboardRequested = false
     /// A transient explanation for the user (why a press did nothing, why power failed, …).
@@ -63,6 +74,8 @@ final class AppModel {
     private var seen: [TVID: TVDeviceInfo] = [:]
     /// TVs with a power toggle in flight.
     private var powerBusyTVs: Set<TVID> = []
+    /// Direction of each in-flight power toggle whose plan is known.
+    private var powerDirections: [TVID: PowerDirection] = [:]
     /// TVs this app just turned off: their sessions failing is expected, so it is not reported, and
     /// they show as asleep until seen on again.
     private var turnedOffTVs: Set<TVID> = []
@@ -80,6 +93,9 @@ final class AppModel {
     @ObservationIgnored private var forgottenThisScan: Set<TVID> = []
     @ObservationIgnored private var scanTask: Task<Void, Never>?
     @ObservationIgnored private var scanGeneration = 0
+    /// The last completed scan found no TV (e.g. it ran while the Local Network prompt was up).
+    @ObservationIgnored private var lastScanFoundNothing = false
+    @ObservationIgnored private var deniedRetryTask: Task<Void, Never>?
     @ObservationIgnored private var labelTask: Task<Void, Never>?
     @ObservationIgnored private var appeared = false
     @ObservationIgnored private var inBackground = false
@@ -145,12 +161,18 @@ final class AppModel {
             inBackground = true
             repeater.end()
             cancelScan()
+            cancelDeniedRetries()
             closeSession()
             rebuildTVs()
         case .active:
-            guard inBackground else { return }
-            inBackground = false
-            refresh()
+            if inBackground {
+                inBackground = false
+                refresh()
+            } else if appeared, localNetworkDenied || (!scanning && lastScanFoundNothing) {
+                // Back from a system alert (such as the Local Network prompt, answered after the
+                // scan gave up): look again.
+                refresh()
+            }
         default:
             break
         }
@@ -209,9 +231,11 @@ final class AppModel {
         switch event {
         case .localNetworkDenied:
             localNetworkDenied = true
+            startDeniedRetries()
         case .found(let info):
             guard !forgottenThisScan.contains(info.id) else { return }
             localNetworkDenied = false // evidently granted
+            cancelDeniedRetries()
             foundThisScan.insert(info.id)
             seen[info.id] = info
             if info.powerState == .on { turnedOffTVs.remove(info.id) }
@@ -224,15 +248,46 @@ final class AppModel {
         }
     }
 
-    /// The selected TV moved to another address, or is now on after the session gave up on it.
+    /// The selected TV moved to another address, is now on after the session gave up on it, or
+    /// answers again after its approval timed out (unless this app just turned it off).
     private func needsNewSession(for info: TVDeviceInfo) -> Bool {
         guard let current else { return true }
         if current.host != info.host { return true }
-        return sessionState == .failed(.unreachable) && info.powerState == .on
+        switch sessionState {
+        case .failed(.unreachable): return info.powerState == .on
+        case .failed(.approvalTimedOut): return !turnedOffTVs.contains(info.id)
+        default: return false
+        }
+    }
+
+    /// While Local Network access looks denied and the app is active, scans again every
+    /// `deniedRetryInterval` (bounded) until a TV is found.
+    private func startDeniedRetries() {
+        guard deniedRetryTask == nil, !inBackground else { return }
+        let clock = env.clock
+        deniedRetryTask = Task { [weak self] in
+            for _ in 0..<Self.deniedRetryLimit {
+                do {
+                    try await clock.sleep(for: Self.deniedRetryInterval)
+                } catch {
+                    return // cancelled
+                }
+                if Task.isCancelled { return }
+                guard let self, self.localNetworkDenied, !self.inBackground, self.onWiFi else { break }
+                if !self.scanning { self.startScan() }
+            }
+            self?.deniedRetryTask = nil
+        }
+    }
+
+    private func cancelDeniedRetries() {
+        deniedRetryTask?.cancel()
+        deniedRetryTask = nil
     }
 
     private func finishScan() {
         scanning = false
+        lastScanFoundNothing = foundThisScan.isEmpty
         seen = seen.filter { foundThisScan.contains($0.key) }
         // With no selection, pick the TV only when there is no choice to make.
         if selectedID == nil, registry.tvs.count == 1, let only = registry.tvs.keys.first {
@@ -308,7 +363,11 @@ final class AppModel {
         case .failed(.unreachable), .failed(.approvalTimedOut):
             // While a power toggle runs, its outcome explains what happened; a TV just turned off
             // is expected to go away.
-            if !powerBusy, !selectedTurnedOff {
+            if powerBusy {
+                break
+            } else if selectedTurnedOff {
+                statusMessage = Self.turnedOffMessage
+            } else {
                 statusMessage = state == .failed(.unreachable) ? Self.unreachableMessage : Self.approvalTimedOutMessage
             }
         case .idle:
@@ -428,15 +487,49 @@ final class AppModel {
         }
         powerBusyTVs.insert(id)
         statusMessage = nil
-        let power = powerController(for: id), session = handle.session
+        let power = powerController(for: id), sender = powerSender(for: handle)
+        let onPlan: @Sendable (PowerAction) async -> Void = { [weak self] action in
+            await self?.powerPlanned(action, for: id)
+        }
         Task { [weak self] in
-            let outcome = await power.togglePower(tv: tv, sender: session)
+            let outcome = await power.togglePower(tv: tv, sender: sender, onPlan: onPlan)
             guard let self else { return }
             self.powerBusyTVs.remove(id)
+            self.powerDirections[id] = nil
             // Only report on the TV still selected.
             guard let outcome, id == self.selectedID, let current = self.current else { return }
             self.powerFinished(outcome, tv: id, on: current)
         }
+    }
+
+    private func powerPlanned(_ action: PowerAction, for id: TVID) {
+        guard powerBusyTVs.contains(id) else { return }
+        powerDirections[id] = action == .turnOff ? .turningOff : .turningOn
+    }
+
+    /// Sends the power controller's key through `handle`'s queue (after its earlier work and every
+    /// earlier teardown), and refuses with `.unreachable` once `handle` is closed or replaced, so a
+    /// late toggle never revives a session the app already closed.
+    private func powerSender(for handle: SessionHandle) -> HandlePowerSender {
+        HandlePowerSender { [weak self, weak handle] (key: RemoteKey, timeout: Duration) throws(SessionError) in
+            guard let self, let handle else { throw .unreachable }
+            try await self.sendPowerKey(key, timeout: timeout, on: handle)
+        }
+    }
+
+    private func sendPowerKey(_ key: RemoteKey, timeout: Duration, on handle: SessionHandle) async throws(SessionError) {
+        guard handle === current else { throw .unreachable }
+        let result = await handle.enqueue { [weak self] session -> Result<Void, SessionError> in
+            // Checked again once the queue reaches this work: the session may have closed meanwhile.
+            guard let self, handle === self.current else { return .failure(.unreachable) }
+            do throws(SessionError) {
+                try await session.sendEnsuringConnection(key, timeout: timeout)
+                return .success(())
+            } catch {
+                return .failure(error)
+            }
+        }.value
+        try result.get()
     }
 
     private func powerController(for id: TVID) -> any PowerToggling {
@@ -516,6 +609,8 @@ final class AppModel {
             Self.log.info("No Samsung TV at manual address: \(String(describing: error), privacy: .public)")
             return false
         }
+        // The user cancelled the sheet while the TV was being asked.
+        guard !Task.isCancelled else { return false }
         forgottenThisScan.remove(info.id) // explicitly added again
         seen[info.id] = info
         registry.record(info, at: .now)
@@ -537,6 +632,38 @@ final class AppModel {
     }
 
     // MARK: - Derived state
+
+    /// The status line above the D-pad: power progress, else the transient message, else a short
+    /// explanation of the state; nil when the selected TV is connected and there is nothing to say.
+    var statusText: String? {
+        if let powerDirection { return powerDirection == .turningOn ? "Turning on…" : "Turning off…" }
+        if let statusMessage { return statusMessage }
+        guard screen == .ready else { return Self.screenStatusText(screen) }
+        if isConnected { return nil }
+        switch sessionState {
+        case .failed(.unreachable), .failed(.approvalTimedOut):
+            // A session that gave up is not connecting; never claim otherwise.
+            if selectedTurnedOff { return Self.turnedOffMessage }
+            return sessionState == .failed(.unreachable) ? Self.unreachableMessage : Self.approvalTimedOutMessage
+        case .idle, .connecting, .awaitingApproval, .connected, .failed(.denied), .failed(.identityChanged):
+            return "Connecting…"
+        }
+    }
+
+    /// The status line's explanation of each screen state other than `.ready`.
+    static func screenStatusText(_ screen: ScreenState) -> String? {
+        switch screen {
+        case .ready: nil
+        case .noWiFi: "Not connected to Wi-Fi"
+        case .localNetworkDenied: "Local Network access is turned off"
+        case .searching: "Searching for TVs…"
+        case .noTVs: "No TVs found"
+        case .chooseTV: "Choose a TV"
+        case .pairing: "Pairing with the TV…"
+        case .pairingDenied: "The TV blocked this iPhone"
+        case .identityChanged: "The TV's security identity changed"
+        }
+    }
 
     private func rebuildTVs() {
         tvs = registry.tvs.values
@@ -594,13 +721,15 @@ private final class SessionHandle {
     }
 
     @discardableResult
-    func enqueue(_ operation: @escaping @MainActor (any RemoteSessionProtocol) async -> Void) -> Task<Void, Never> {
+    func enqueue<T: Sendable>(
+        _ operation: @escaping @MainActor (any RemoteSessionProtocol) async -> T
+    ) -> Task<T, Never> {
         let previous = tail, session = session
         let task = Task {
             await previous?.value
-            await operation(session)
+            return await operation(session)
         }
-        tail = task
+        tail = Task { _ = await task.value }
         return task
     }
 
@@ -609,5 +738,15 @@ private final class SessionHandle {
         for observer in observers { observer.cancel() }
         observers = []
         return enqueue { await $0.disconnect() }
+    }
+}
+
+/// The `PowerKeySending` the power controller gets: routes its key through the app's session
+/// handle instead of touching the session directly.
+private struct HandlePowerSender: PowerKeySending {
+    let send: @MainActor @Sendable (RemoteKey, Duration) async throws(SessionError) -> Void
+
+    func sendEnsuringConnection(_ key: RemoteKey, timeout: Duration) async throws(SessionError) {
+        try await send(key, timeout)
     }
 }

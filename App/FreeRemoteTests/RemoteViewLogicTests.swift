@@ -19,21 +19,12 @@ import SamsungTVKit
         #expect(!RemoteAvailability(screen: .chooseTV, isConnected: false, hasSelection: false).power)
     }
 
-    @Test func statusMessageWinsOverScreenState() {
-        #expect(StatusView.text(screen: .ready, isConnected: true, statusMessage: "Explained") == "Explained")
-        #expect(StatusView.text(screen: .noWiFi, isConnected: false, statusMessage: "Explained") == "Explained")
-    }
-
-    @Test func connectedReadyScreenNeedsNoStatus() {
-        #expect(StatusView.text(screen: .ready, isConnected: true, statusMessage: nil) == nil)
-        #expect(StatusView.text(screen: .ready, isConnected: false, statusMessage: nil) == "Connecting…")
-    }
-
-    @Test func everyOtherScreenStateIsExplained() {
+    @Test func everyScreenStateOtherThanReadyIsExplained() {
+        #expect(AppModel.screenStatusText(.ready) == nil)
         let states: [ScreenState] = [
             .noWiFi, .localNetworkDenied, .searching, .noTVs, .chooseTV, .pairing, .pairingDenied, .identityChanged,
         ]
-        let texts = states.map { StatusView.text(screen: $0, isConnected: false, statusMessage: nil) }
+        let texts = states.map(AppModel.screenStatusText)
         #expect(texts.allSatisfy { !($0 ?? "").isEmpty })
         #expect(Set(texts).count == states.count)
     }

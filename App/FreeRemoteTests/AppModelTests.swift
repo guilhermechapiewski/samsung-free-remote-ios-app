@@ -62,6 +62,8 @@ private final class FakeSession: RemoteSessionProtocol {
     struct Log {
         var connects = 0
         var disconnects = 0
+        /// Keys sent with `sendEnsuringConnection` (the power controller's path).
+        var ensured: [String] = []
         var sent: [String] = []
         var texts: [String] = []
         var current: SessionState = .idle
@@ -96,7 +98,10 @@ private final class FakeSession: RemoteSessionProtocol {
     func connect() async { log.withLock { $0.connects += 1 } }
     func disconnect() async {
         await disconnectGate.wait()
-        log.withLock { $0.disconnects += 1 }
+        log.withLock {
+            $0.disconnects += 1
+            $0.current = .idle
+        }
     }
 
     func send(_ key: RemoteKey, _ action: KeyAction) async throws(SessionError) {
@@ -106,7 +111,14 @@ private final class FakeSession: RemoteSessionProtocol {
         }
     }
 
+    /// Like the real session: connects first when not connected (this fake then fails the send).
     func sendEnsuringConnection(_ key: RemoteKey, timeout: Duration) async throws(SessionError) {
+        let connected = log.withLock { l in
+            l.ensured.append(key.rawValue)
+            if l.current != .connected { l.connects += 1 }
+            return l.current == .connected
+        }
+        guard connected else { throw .unreachable }
         try await send(key, .click)
     }
 
@@ -181,12 +193,20 @@ private final class FakeKnownTVStore: KnownTVPersisting {
 
 private final class FakePower: PowerToggling {
     let outcome: PowerOutcome?
+    /// Reported to `onPlan` before the gate, when set.
+    let plan: PowerAction?
     let calls = Mutex<[TVID]>([])
     /// Holds every toggle while closed.
     let gate = Gate()
-    init(_ outcome: PowerOutcome?) { self.outcome = outcome }
-    func togglePower(tv: KnownTV, sender: any PowerKeySending) async -> PowerOutcome? {
+    init(_ outcome: PowerOutcome?, plan: PowerAction? = nil) {
+        self.outcome = outcome
+        self.plan = plan
+    }
+    func togglePower(
+        tv: KnownTV, sender: any PowerKeySending, onPlan: @Sendable (PowerAction) async -> Void
+    ) async -> PowerOutcome? {
         calls.withLock { $0.append(tv.id) }
+        if let plan { await onPlan(plan) }
         await gate.wait()
         return outcome
     }
@@ -195,9 +215,15 @@ private final class FakePower: PowerToggling {
 private final class FakeFetcher: TVInfoFetching {
     let infos: [String: TVDeviceInfo]
     let requested = Mutex<[String]>([])
+    /// Answers counted once each fetch returns.
+    let answered = Mutex(0)
+    /// Holds every fetch while closed.
+    let gate = Gate()
     init(_ infos: [TVDeviceInfo] = []) { self.infos = Dictionary(uniqueKeysWithValues: infos.map { ($0.host, $0) }) }
     func fetchInfo(host: String) async throws(TVInfoError) -> TVDeviceInfo {
         requested.withLock { $0.append(host) }
+        await gate.wait()
+        defer { answered.withLock { $0 += 1 } }
         guard let i = infos[host] else { throw .unreachable }
         return i
     }
@@ -213,25 +239,35 @@ private struct Harness {
     let store: FakeKnownTVStore
     let power: FakePower
     let fetcher: FakeFetcher
+    /// What a real `PowerController` fetches, when the harness uses one.
+    let powerFetcher: FakeFetcher
     let clock = TestClock()
     let wifi: WiFiSwitch
     let defaults: UserDefaults
     let model: AppModel
 
+    /// `realPower` uses a real `PowerController` (fetching from `powerFetcher`, answering for
+    /// `powerFetchable`) instead of `FakePower`.
     init(known: [TVDeviceInfo] = [], selected: TVID? = nil, wifi: Bool = true,
-         power: PowerOutcome? = .turnedOn, fetchable: [TVDeviceInfo] = []) {
+         power: PowerOutcome? = .turnedOn, powerPlan: PowerAction? = nil, fetchable: [TVDeviceInfo] = [],
+         realPower: Bool = false, powerFetchable: [TVDeviceInfo] = []) {
         store = FakeKnownTVStore(known.map(knownTV))
         self.wifi = WiFiSwitch(wifi)
-        self.power = FakePower(power)
+        self.power = FakePower(power, plan: powerPlan)
         fetcher = FakeFetcher(fetchable)
+        powerFetcher = FakeFetcher(powerFetchable)
         defaults = UserDefaults(suiteName: "AppModelTests.\(UUID().uuidString)")!
         if let selected { defaults.set(selected.rawValue, forKey: "selectedTV") }
         let discovery = discovery, sessions = sessions, powerFake = self.power
+        let powerFetcher = powerFetcher, clock = clock
         let iface = IPv4Interface(name: "en0", address: 0xC0A8_0102, netmask: 0xFFFF_FF00)
         let env = AppEnvironment(
             makeDiscovery: { discovery.make($0) },
             makeSession: { sessions.make($0, $1) },
-            makePowerController: { powerFake },
+            makePowerController: {
+                guard realPower else { return powerFake }
+                return PowerController(fetcher: powerFetcher, wake: { _, _ in }, interface: { nil }, clock: clock)
+            },
             fetcher: fetcher,
             credentials: credentials,
             labels: labels,
@@ -823,14 +859,18 @@ private let tvC = info("uuid:c", host: "192.168.1.12", name: "Alpha", model: "QE
         h.model.togglePower()
         await settle { !h.model.powerBusy && h.discovery.scans.count == 2 }
 
-        // The TV was turned off on purpose: its session giving up is not an error.
+        // The TV was turned off on purpose: its session giving up is not an error, and the status
+        // line says the TV is off rather than "Connecting…".
         session.emit(.failed(.unreachable))
         await settle { h.model.tvs.first?.status != .on }
-        #expect(h.model.statusMessage == nil)
+        #expect(h.model.statusMessage == AppModel.turnedOffMessage)
+        #expect(h.model.statusText == AppModel.turnedOffMessage)
         #expect(h.model.tvs.first { $0.id == tvA.id }?.status == .asleep)
         session.emit(.failed(.approvalTimedOut))
         await drain()
-        #expect(h.model.statusMessage == nil)
+        #expect(h.model.statusMessage == AppModel.turnedOffMessage)
+        h.model.statusMessage = nil
+        #expect(h.model.statusText == AppModel.turnedOffMessage)
         // The scan after turning off does not find it; it is still shown as asleep.
         h.discovery.finish()
         await settle { !h.model.tvs.isEmpty && h.discovery.scans.count == 2 }
@@ -861,5 +901,253 @@ private let tvC = info("uuid:c", host: "192.168.1.12", name: "Alpha", model: "QE
         await settle { h.power.calls.withLock { $0 } == [tvA.id] }
         #expect(h.power.calls.withLock { $0 } == [tvA.id])
         #expect(h.model.screen != .noWiFi)
+    }
+
+    // MARK: - Power never revives a closed session
+
+    @Test func powerAfterSwitchingTVDoesNotReviveOldSession() async throws {
+        let h = Harness(known: [tvA, tvB], selected: tvA.id, realPower: true, powerFetchable: [tvA])
+        await h.appear()
+        await h.connectCurrent()
+        let old = try #require(h.sessions.last)
+        h.powerFetcher.gate.close()
+        h.model.togglePower()
+        await settle { h.powerFetcher.gate.waiting == 1 }
+
+        h.model.select(tvB.id)
+        await settle { old.snapshot.disconnects == 1 }
+        h.powerFetcher.gate.open() // the TV reports on: the controller sends KEY_POWER
+        await settle { h.powerFetcher.answered.withLock { $0 } == 1 }
+        await drain()
+        #expect(old.snapshot.connects == 1)
+        #expect(old.snapshot.ensured.isEmpty)
+        #expect(old.snapshot.sent.isEmpty)
+        #expect(h.sessions.last?.snapshot.ensured.isEmpty == true)
+    }
+
+    @Test func powerAfterForgettingTVDoesNotReviveOldSession() async throws {
+        let h = Harness(known: [tvA, tvB], selected: tvA.id, realPower: true, powerFetchable: [tvA])
+        await h.appear()
+        await h.connectCurrent()
+        let old = try #require(h.sessions.last)
+        h.powerFetcher.gate.close()
+        h.model.togglePower()
+        await settle { h.powerFetcher.gate.waiting == 1 }
+
+        h.model.forget(tvA.id)
+        await settle { old.snapshot.disconnects == 1 && h.credentials.deleted.withLock { $0 } == [tvA.id] }
+        h.powerFetcher.gate.open()
+        await settle { h.powerFetcher.answered.withLock { $0 } == 1 }
+        await drain()
+        #expect(old.snapshot.connects == 1)
+        #expect(old.snapshot.ensured.isEmpty)
+        #expect(old.snapshot.sent.isEmpty)
+        #expect(h.sessions.list.count == 1)
+    }
+
+    @Test func powerKeyWaitsForEarlierTeardown() async throws {
+        let h = Harness(known: [tvA], selected: tvA.id, realPower: true, powerFetchable: [tvA])
+        await h.appear()
+        await h.connectCurrent()
+        h.sessions.disconnectGate.close()
+        h.model.scenePhaseChanged(.background)
+        h.model.scenePhaseChanged(.active)
+        await settle { h.sessions.list.count == 2 }
+        let second = try #require(h.sessions.last)
+
+        h.model.togglePower()
+        await settle { h.powerFetcher.answered.withLock { $0 } == 1 }
+        await drain()
+        #expect(second.snapshot.ensured.isEmpty) // still queued behind the old disconnect
+        h.sessions.disconnectGate.open()
+        await settle { second.snapshot.ensured == ["KEY_POWER"] }
+        #expect(second.snapshot.connects >= 1)
+        #expect(second.snapshot.ensured == ["KEY_POWER"])
+    }
+
+    // MARK: - Status line
+
+    @Test func statusTextDescribesTheSelectedSession() async throws {
+        let h = Harness(known: [tvA], selected: tvA.id)
+        await h.appear()
+        await settle { h.sessions.last?.snapshot.connects == 1 }
+        let session = try #require(h.sessions.last)
+
+        session.emit(.connecting)
+        await settle { h.model.statusText == "Connecting…" }
+        #expect(h.model.statusText == "Connecting…")
+
+        session.emit(.awaitingApproval)
+        await settle { h.model.screen == .pairing }
+        #expect(h.model.statusText == "Pairing with the TV…")
+
+        session.emit(.failed(.unreachable))
+        await settle { h.model.statusMessage != nil }
+        #expect(h.model.statusText == AppModel.unreachableMessage)
+        // Even with the message gone, a session that gave up is never shown as connecting.
+        h.model.statusMessage = nil
+        #expect(h.model.statusText == AppModel.unreachableMessage)
+        session.emit(.failed(.approvalTimedOut))
+        await settle { h.model.statusMessage != nil }
+        h.model.statusMessage = nil
+        #expect(h.model.statusText == AppModel.approvalTimedOutMessage)
+
+        session.emit(.connected)
+        await settle { h.model.isConnected }
+        #expect(h.model.statusText == nil)
+    }
+
+    @Test func statusShowsPowerDirectionWhileRunning() async {
+        let off = Harness(known: [tvA], selected: tvA.id, power: .turnedOff, powerPlan: .turnOff)
+        await off.appear()
+        await off.connectCurrent()
+        off.power.gate.close()
+        off.model.togglePower()
+        await settle { off.power.gate.waiting == 1 }
+        #expect(off.model.powerDirection == .turningOff)
+        #expect(off.model.statusText == "Turning off…")
+        off.power.gate.open()
+        await settle { !off.model.powerBusy }
+        #expect(off.model.powerDirection == nil)
+        #expect(off.model.statusText != "Turning off…")
+
+        let on = Harness(known: [tvA], selected: tvA.id, power: .turnedOn, powerPlan: .wakeOnLAN)
+        await on.appear()
+        await settle { on.sessions.last?.snapshot.connects == 1 }
+        on.power.gate.close()
+        on.model.togglePower()
+        await settle { on.power.gate.waiting == 1 }
+        #expect(on.model.statusText == "Turning on…")
+        on.power.gate.open()
+        await settle { !on.model.powerBusy }
+        #expect(on.model.powerDirection == nil)
+    }
+
+    // MARK: - Local Network prompt
+
+    @Test func returningFromPromptRescansWhenNothingWasFound() async {
+        let h = Harness()
+        await h.appear()
+        h.discovery.finish()
+        await settle { h.model.screen == .noTVs }
+
+        // The Local Network prompt was answered after the scan gave up.
+        h.model.scenePhaseChanged(.inactive)
+        h.model.scenePhaseChanged(.active)
+        await settle { h.discovery.scans.count == 2 }
+        #expect(h.discovery.scans.count == 2)
+
+        h.discovery.yield(.found(tvA))
+        h.discovery.finish()
+        await settle { h.model.selectedID == tvA.id }
+        // With a TV found, coming back from an alert does not scan again.
+        h.model.scenePhaseChanged(.inactive)
+        h.model.scenePhaseChanged(.active)
+        await drain()
+        #expect(h.discovery.scans.count == 2)
+    }
+
+    @Test func returningFromPromptRescansAfterDenial() async {
+        let h = Harness()
+        await h.appear()
+        h.discovery.yield(.localNetworkDenied)
+        await settle { h.model.screen == .localNetworkDenied }
+        h.model.scenePhaseChanged(.inactive)
+        h.model.scenePhaseChanged(.active)
+        await settle { h.discovery.scans.count == 2 }
+        #expect(h.discovery.scans.count == 2)
+        h.discovery.yield(.found(tvA))
+        await settle { h.model.screen != .localNetworkDenied }
+        #expect(h.model.screen == .chooseTV)
+    }
+
+    @Test func deniedRetriesScanEveryThreeSecondsUntilFound() async {
+        let h = Harness()
+        await h.appear()
+        h.discovery.yield(.localNetworkDenied)
+        await h.clock.waitForSleepers(1)
+        #expect(h.clock.requestedSleeps == [AppModel.deniedRetryInterval])
+        #expect(AppModel.deniedRetryInterval == .seconds(3))
+
+        // A scan still running is not interrupted.
+        h.clock.advance(by: .seconds(3))
+        await h.clock.waitForSleepers(1)
+        #expect(h.discovery.scans.count == 1)
+
+        h.discovery.finish()
+        await drain()
+        h.clock.advance(by: .seconds(3))
+        await settle { h.discovery.scans.count == 2 }
+        #expect(h.discovery.scans.count == 2)
+
+        h.discovery.yield(.found(tvA))
+        await h.clock.waitForSleepers(0)
+        h.clock.advance(by: .seconds(30))
+        await drain()
+        #expect(h.discovery.scans.count == 2)
+        #expect(h.model.screen == .chooseTV)
+    }
+
+    @Test func deniedRetriesAreBoundedAndStopInBackground() async {
+        let h = Harness()
+        await h.appear()
+        h.discovery.yield(.localNetworkDenied)
+        h.discovery.finish()
+        await drain() // the scan has ended, so a retry may start one
+        for retry in 1...AppModel.deniedRetryLimit {
+            await h.clock.waitForSleepers(1)
+            h.clock.advance(by: .seconds(3))
+            await settle { h.discovery.scans.count == retry + 1 }
+            #expect(h.discovery.scans.count == retry + 1)
+            h.discovery.finish()
+            await drain()
+        }
+        await h.clock.waitForSleepers(0)
+        h.clock.advance(by: .seconds(30))
+        await drain()
+        #expect(h.discovery.scans.count == AppModel.deniedRetryLimit + 1)
+
+        // Retries start again with the next denial, and background cancels them.
+        h.model.scenePhaseChanged(.background)
+        h.model.scenePhaseChanged(.active)
+        await settle { h.discovery.scans.count == AppModel.deniedRetryLimit + 2 }
+        h.discovery.yield(.localNetworkDenied)
+        await h.clock.waitForSleepers(1)
+        h.model.scenePhaseChanged(.background)
+        await h.clock.waitForSleepers(0)
+        h.clock.advance(by: .seconds(30))
+        await drain()
+        #expect(h.discovery.scans.count == AppModel.deniedRetryLimit + 2)
+    }
+
+    // MARK: - Recovery and manual add
+
+    @Test func scanRecoversApprovalTimedOutSession() async throws {
+        let h = Harness(known: [tvA], selected: tvA.id)
+        await h.appear()
+        await settle { h.sessions.last?.snapshot.connects == 1 }
+        let first = try #require(h.sessions.last)
+        first.emit(.failed(.approvalTimedOut))
+        await settle { h.model.statusMessage == AppModel.approvalTimedOutMessage }
+
+        h.discovery.yield(.found(tvA))
+        await settle { h.sessions.list.count == 2 && h.sessions.last?.snapshot.connects == 1 }
+        #expect(h.sessions.list.count == 2)
+        #expect(first.snapshot.disconnects == 1)
+        #expect(h.sessions.last?.snapshot.connects == 1)
+    }
+
+    @Test func cancelledManualAddSelectsNothing() async {
+        let h = Harness(fetchable: [tvA])
+        h.fetcher.gate.close()
+        let add = Task { await h.model.addManually(host: tvA.host) }
+        await settle { h.fetcher.gate.waiting == 1 }
+        add.cancel()
+        h.fetcher.gate.open()
+        #expect(await add.value == false)
+        #expect(h.model.selectedID == nil)
+        #expect(h.model.tvs.isEmpty)
+        #expect(h.store.load().tvs.isEmpty)
+        #expect(h.sessions.list.isEmpty)
     }
 }
