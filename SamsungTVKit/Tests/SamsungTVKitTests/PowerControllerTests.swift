@@ -102,21 +102,65 @@ struct PowerControllerTests {
     // MARK: - Turn off
 
     @Test func onTurnsOffWithPowerKey() async {
-        let fetcher = FakeFetcher([.success(.on)])
+        let fetcher = FakeFetcher([.success(.on), .success(.standby)])
         let sender = FakeSender()
-        let outcome = await controller(fetcher).togglePower(tv: knownTV(), sender: sender)
-        #expect(outcome == .turnedOff)
+        let c = controller(fetcher)
+        let task = Task { await c.togglePower(tv: knownTV(), sender: sender) }
+        #expect(await drive(task, polls: 1) == .turnedOff)
         #expect(sender.sent == [.power])
         #expect(sender.timeouts == [.seconds(3)])
-        #expect(fetcher.fetchedHosts == [host])
+        #expect(fetcher.fetchedHosts == [host, host])
         #expect(wakes.macs.isEmpty)
     }
 
-    @Test func turnOffFailureReportsFailed() async {
+    @Test func turnOffPollsUntilNotOn() async {
+        // Still on for two polls, then unreachable (counts as off).
+        let fetcher = FakeFetcher([.success(.on), .success(.on), .success(.on), .failure(.unreachable)])
+        let sender = FakeSender()
+        let c = controller(fetcher)
+        let task = Task { await c.togglePower(tv: knownTV(), sender: sender) }
+        #expect(await drive(task, polls: 3) == .turnedOff)
+        #expect(fetcher.fetchedHosts.count == 4)
+        #expect(sender.sent == [.power])
+    }
+
+    @Test func turnOffConfirmationTimesOutStillTurnedOff() async {
         let fetcher = FakeFetcher([.success(.on)])
-        let sender = FakeSender(.failure(.unreachable))
+        let sender = FakeSender()
+        let c = controller(fetcher)
+        let task = Task { await c.togglePower(tv: knownTV(), sender: sender) }
+        #expect(await drive(task, polls: 5) == .turnedOff)
+        #expect(fetcher.fetchedHosts.count == 6)
+        #expect(sender.sent == [.power])
+    }
+
+    @Test func secondPressDuringShutdownIsIgnored() async {
+        let fetcher = FakeFetcher([.success(.on), .success(.on), .success(.on), .success(.standby)])
+        let sender = FakeSender()
+        let c = controller(fetcher)
+        let first = Task { await c.togglePower(tv: knownTV(), sender: sender) }
+        await clock.waitForSleepers(1)
+
+        // The TV still reports on: a second press must not send another power key.
+        #expect(await c.togglePower(tv: knownTV(), sender: sender) == nil)
+        clock.advance(by: .seconds(1))
+        await clock.waitForSleepers(1)
+        #expect(await c.togglePower(tv: knownTV(), sender: sender) == nil)
+        clock.advance(by: .seconds(1))
+        await clock.waitForSleepers(1)
+        clock.advance(by: .seconds(1))
+
+        #expect(await first.value == .turnedOff)
+        #expect(sender.sent == [.power])
+    }
+
+    @Test(arguments: [SessionError.unreachable, .denied, .identityChanged, .approvalTimedOut])
+    func turnOffFailureReportsReason(error: SessionError) async {
+        let fetcher = FakeFetcher([.success(.on)])
+        let sender = FakeSender(.failure(error))
         let outcome = await controller(fetcher).togglePower(tv: knownTV(), sender: sender)
-        #expect(outcome == .failed)
+        #expect(outcome == .failed(error))
+        #expect(fetcher.fetchedHosts.count == 1)
         #expect(wakes.macs.isEmpty)
     }
 
@@ -133,9 +177,31 @@ struct PowerControllerTests {
         #expect(fetcher.fetchedHosts.count == 3)
     }
 
-    @Test func standbyRefusesConnectionFallsBackToWoL() async {
+    @Test func standbyPowerKeyAcceptedButNeverOn() async {
+        let fetcher = FakeFetcher([.success(.standby)])
+        let sender = FakeSender()
+        let c = controller(fetcher)
+        let task = Task { await c.togglePower(tv: knownTV(), sender: sender) }
+        #expect(await drive(task, polls: 20) == .failedToWake)
+        #expect(sender.sent == [.power])
+        #expect(wakes.macs.isEmpty)
+    }
+
+    @Test(arguments: [SessionError.identityChanged, .denied])
+    func standbyPairingFailureDoesNotFallBack(error: SessionError) async {
+        let fetcher = FakeFetcher([.success(.standby)])
+        let sender = FakeSender(.failure(error))
+        let outcome = await controller(fetcher).togglePower(tv: knownTV(), sender: sender)
+        #expect(outcome == .failed(error))
+        #expect(sender.sent == [.power])
+        #expect(wakes.macs.isEmpty)
+        #expect(fetcher.fetchedHosts.count == 1)
+    }
+
+    @Test(arguments: [SessionError.unreachable, .approvalTimedOut])
+    func standbyRefusesConnectionFallsBackToWoL(error: SessionError) async {
         let fetcher = FakeFetcher([.success(.standby), .success(.on)])
-        let sender = FakeSender(.failure(.unreachable))
+        let sender = FakeSender(.failure(error))
         let c = controller(fetcher)
         let task = Task { await c.togglePower(tv: knownTV(), sender: sender) }
         #expect(await drive(task, polls: 1) == .turnedOn)
@@ -189,7 +255,7 @@ struct PowerControllerTests {
     // MARK: - Concurrency
 
     @Test func concurrentPressIsIgnored() async {
-        let fetcher = FakeFetcher([.failure(.unreachable), .success(.on)])
+        let fetcher = FakeFetcher([.failure(.unreachable), .success(.on), .success(.on), .success(.standby)])
         let sender = FakeSender()
         let c = controller(fetcher)
         let first = Task { await c.togglePower(tv: knownTV(), sender: sender) }
@@ -202,6 +268,8 @@ struct PowerControllerTests {
         #expect(wakes.macs == [mac])
 
         // Once the first finishes, presses are accepted again (TV now on → turn off).
-        #expect(await c.togglePower(tv: knownTV(), sender: sender) == .turnedOff)
+        let third = Task { await c.togglePower(tv: knownTV(), sender: sender) }
+        #expect(await drive(third, polls: 1) == .turnedOff)
+        #expect(sender.sent == [.power])
     }
 }

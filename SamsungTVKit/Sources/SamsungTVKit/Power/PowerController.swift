@@ -2,8 +2,8 @@ import os
 
 public enum PowerOutcome: Equatable, Sendable {
     case turnedOff, turnedOn, failedToWake, noMACKnown, notOnWiFi
-    /// The TV was on but the power key could not be delivered.
-    case failed
+    /// The power key could not be delivered (and wake-on-LAN was not an appropriate fallback).
+    case failed(SessionError)
 }
 
 /// Sends one key, connecting first if needed. `RemoteSession` conforms.
@@ -25,6 +25,7 @@ public actor PowerController {
     private let interface: @Sendable () -> IPv4Interface?
     private let clock: any Clock<Duration>
     private let wakeTimeout: Duration
+    private let offConfirmTimeout: Duration
     private var inFlight = false
 
     /// `fetcher` should use a short timeout (the app passes 1 s); `wake` sends the magic packet;
@@ -34,16 +35,19 @@ public actor PowerController {
         wake: @escaping @Sendable (MACAddress, IPv4Interface) async -> Void,
         interface: @escaping @Sendable () -> IPv4Interface?,
         clock: any Clock<Duration> = ContinuousClock(),
-        wakeTimeout: Duration = .seconds(20)
+        wakeTimeout: Duration = .seconds(20),
+        offConfirmTimeout: Duration = .seconds(5)
     ) {
         self.fetcher = fetcher
         self.wake = wake
         self.interface = interface
         self.clock = clock
         self.wakeTimeout = wakeTimeout
+        self.offConfirmTimeout = offConfirmTimeout
     }
 
-    /// Toggles the TV's power. Returns nil (ignored) while a previous toggle is still in flight.
+    /// Toggles the TV's power. Returns nil (ignored) while a previous toggle is still in flight,
+    /// including while a turn-off is being confirmed, so a stale `.on` cannot trigger a second key.
     public func togglePower(tv: KnownTV, sender: any PowerKeySending) async -> PowerOutcome? {
         guard !inFlight else { return nil }
         inFlight = true
@@ -53,18 +57,25 @@ public actor PowerController {
         case .turnOff:
             do {
                 try await sender.sendEnsuringConnection(.power, timeout: Self.keyTimeout)
-                return .turnedOff
             } catch {
                 Self.log.error("Power key to \(tv.lastHost, privacy: .private) failed: \(String(describing: error), privacy: .public)")
-                return .failed
+                return .failed(error)
             }
+            // The key was accepted; stay in flight until the TV stops reporting on (or we give up).
+            _ = await poll(tv.lastHost, timeout: offConfirmTimeout) { $0 != .success(.on) }
+            return .turnedOff
         case .wakeFromStandby:
             do {
                 try await sender.sendEnsuringConnection(.power, timeout: Self.keyTimeout)
                 return await pollUntilOn(tv.lastHost) ? .turnedOn : .failedToWake
             } catch {
-                Self.log.info("Standby TV refused the connection; falling back to wake-on-LAN")
-                return await wakeOnLAN(tv)
+                switch error {
+                case .identityChanged, .denied:
+                    return .failed(error) // needs re-pairing; waking would not help
+                case .unreachable, .approvalTimedOut:
+                    Self.log.info("Standby TV did not accept the power key; falling back to wake-on-LAN")
+                    return await wakeOnLAN(tv)
+                }
             }
         case .wakeOnLAN:
             return await wakeOnLAN(tv)
@@ -88,15 +99,22 @@ public actor PowerController {
 
     /// Polls every second until the TV reports `.on` (true) or `wakeTimeout` elapses (false).
     private func pollUntilOn(_ host: String) async -> Bool {
+        await poll(host, timeout: wakeTimeout) { $0 == .success(.on) }
+    }
+
+    /// Fetches every second until `done` holds for a result (true) or `timeout` elapses (false).
+    private func poll(
+        _ host: String, timeout: Duration, until done: (Result<TVPowerState, TVInfoError>) -> Bool
+    ) async -> Bool {
         let clock = clock // a local: opening the stored existential directly fails to type-check
         let elapsed = stopwatch(clock)
-        while elapsed() < wakeTimeout {
+        while elapsed() < timeout {
             do {
                 try await clock.sleep(for: Self.pollInterval)
             } catch {
                 return false // cancelled
             }
-            if case .success(.on) = await fetchPower(host) { return true }
+            if done(await fetchPower(host)) { return true }
         }
         return false
     }
