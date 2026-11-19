@@ -18,7 +18,7 @@ enum TVStatus: Equatable {
 }
 
 enum ScreenState: Equatable {
-    case noWiFi, localNetworkDenied, searching, noTVs, ready, pairing, pairingDenied, identityChanged
+    case noWiFi, localNetworkDenied, searching, noTVs, chooseTV, ready, pairing, pairingDenied, identityChanged
 }
 
 /// The app's state and actions: discovery, the known TVs, the selected TV's session, power and
@@ -45,7 +45,8 @@ final class AppModel {
 
     private(set) var tvs: [TVListItem] = []
     private(set) var selectedID: TVID?
-    private(set) var powerBusy = false
+    /// A power toggle is in flight for the selected TV.
+    var powerBusy: Bool { selectedID.map(powerBusyTVs.contains) ?? false }
     /// The TV is showing its on-screen keyboard and wants text.
     private(set) var keyboardRequested = false
     /// A transient explanation for the user (why a press did nothing, why power failed, …).
@@ -59,12 +60,20 @@ final class AppModel {
     private var registry = KnownTVRegistry()
     /// Latest info per TV found in the current or last completed scan.
     private var seen: [TVID: TVDeviceInfo] = [:]
+    /// TVs with a power toggle in flight.
+    private var powerBusyTVs: Set<TVID> = []
 
     @ObservationIgnored private let env: AppEnvironment
-    @ObservationIgnored private let power: any PowerToggling
+    /// One power controller per TV, so each TV has its own in-flight guard.
+    @ObservationIgnored private var powerControllers: [TVID: any PowerToggling] = [:]
     @ObservationIgnored private var repeater: RepeatController!
     @ObservationIgnored private var current: SessionHandle?
+    /// Disconnects of closed sessions (and credential deletes after them), chained in order; every
+    /// new session waits for this before its first operation.
+    @ObservationIgnored private var teardown: Task<Void, Never>?
     @ObservationIgnored private var foundThisScan: Set<TVID> = []
+    /// TVs forgotten during the current scan; its in-flight results for them are ignored.
+    @ObservationIgnored private var forgottenThisScan: Set<TVID> = []
     @ObservationIgnored private var scanTask: Task<Void, Never>?
     @ObservationIgnored private var scanGeneration = 0
     @ObservationIgnored private var labelTask: Task<Void, Never>?
@@ -74,7 +83,6 @@ final class AppModel {
 
     init(env: AppEnvironment) {
         self.env = env
-        power = env.makePowerController()
         repeater = RepeatController(clock: env.clock, strategy: .default) { [weak self] key, action in
             await self?.sendFromHold(key, action)
         }
@@ -92,7 +100,7 @@ final class AppModel {
             }
         }
         if tvs.isEmpty { return scanning ? .searching : .noTVs }
-        return .ready
+        return .chooseTV
     }
 
     /// The selected TV's session is connected, so keys can be sent.
@@ -130,9 +138,7 @@ final class AppModel {
         case .background:
             inBackground = true
             repeater.end()
-            scanTask?.cancel()
-            scanTask = nil
-            scanning = false
+            cancelScan()
             closeSession()
             rebuildTVs()
         case .active:
@@ -153,9 +159,10 @@ final class AppModel {
     private func refresh() {
         onWiFi = env.wifiInterface() != nil
         guard onWiFi else {
-            scanTask?.cancel()
-            scanTask = nil
-            scanning = false
+            repeater.end()
+            cancelScan()
+            closeSession()
+            rebuildTVs()
             return
         }
         if let id = selectedID, current == nil || sessionFailed { openSession(id) }
@@ -168,9 +175,9 @@ final class AppModel {
         scanTask?.cancel()
         scanGeneration += 1
         let generation = scanGeneration
-        localNetworkDenied = false
         scanning = true
         foundThisScan = []
+        forgottenThisScan = []
         let hosts = registry.tvs.values.map(\.lastHost).sorted()
         let makeDiscovery = env.makeDiscovery
         scanTask = Task { [weak self] in
@@ -184,18 +191,26 @@ final class AppModel {
         }
     }
 
+    /// Stops the current scan; results still in flight are dropped.
+    private func cancelScan() {
+        scanTask?.cancel()
+        scanTask = nil
+        scanGeneration += 1
+        scanning = false
+    }
+
     private func handle(_ event: DiscoveryEvent) {
         switch event {
         case .localNetworkDenied:
             localNetworkDenied = true
         case .found(let info):
+            guard !forgottenThisScan.contains(info.id) else { return }
+            localNetworkDenied = false // evidently granted
             foundThisScan.insert(info.id)
             seen[info.id] = info
             registry.record(info, at: .now)
             saveRegistry()
-            if selectedID == nil {
-                select(info.id)
-            } else if info.id == selectedID, needsNewSession(for: info) {
+            if info.id == selectedID, needsNewSession(for: info) {
                 openSession(info.id)
             }
             rebuildTVs()
@@ -212,6 +227,10 @@ final class AppModel {
     private func finishScan() {
         scanning = false
         seen = seen.filter { foundThisScan.contains($0.key) }
+        // With no selection, pick the TV only when there is no choice to make.
+        if selectedID == nil, registry.tvs.count == 1, let only = registry.tvs.keys.first {
+            select(only)
+        }
         rebuildTVs()
     }
 
@@ -232,12 +251,12 @@ final class AppModel {
         rebuildTVs()
     }
 
-    /// Replaces the current session with a new one for `id` at its last known host and connects it.
-    /// `prepare` runs after the old session has disconnected and before the new one connects.
-    private func openSession(_ id: TVID, prepare: (@MainActor () -> Void)? = nil) {
+    /// Replaces the current session with a new one for `id` at its last known host and connects it
+    /// once every earlier teardown has finished.
+    private func openSession(_ id: TVID) {
         guard let tv = registry.tvs[id] else { return }
-        let previous = closeSession()
-        let handle = SessionHandle(host: tv.lastHost, session: env.makeSession(id, tv.lastHost), after: previous)
+        closeSession()
+        let handle = SessionHandle(host: tv.lastHost, session: env.makeSession(id, tv.lastHost), after: teardown)
         current = handle
         nextPlayPauseIsPause = true
         let session = handle.session
@@ -249,32 +268,41 @@ final class AppModel {
                 for await shown in session.keyboardEvents { self?.keyboardChanged(shown, on: handle) }
             },
         ]
-        if let prepare { handle.enqueue { _ in prepare() } }
         handle.enqueue { await $0.connect() }
     }
 
-    /// Stops observing and disconnects the current session. Returns the task that finishes when
-    /// it has disconnected.
-    @discardableResult
-    private func closeSession() -> Task<Void, Never>? {
-        guard let handle = current else { return nil }
+    /// Stops observing and disconnects the current session, chaining the disconnect onto `teardown`.
+    private func closeSession() {
+        guard let handle = current else { return }
         current = nil
         sessionState = .idle
         keyboardRequested = false
-        return handle.close()
+        let disconnect = handle.close()
+        afterTeardown { await disconnect.value }
+    }
+
+    /// Appends `work` to `teardown`, after every earlier disconnect.
+    private func afterTeardown(_ work: @escaping @MainActor () async -> Void) {
+        let previous = teardown
+        teardown = Task {
+            await previous?.value
+            await work()
+        }
     }
 
     private func sessionStateChanged(_ state: SessionState, on handle: SessionHandle) {
         guard handle === current else { return }
         sessionState = state
         switch state {
-        case .connected:
+        case .connecting, .awaitingApproval, .connected, .failed(.denied), .failed(.identityChanged):
+            // Progress makes older explanations stale; failure screens explain themselves.
             statusMessage = nil
-        case .failed(.unreachable):
-            statusMessage = Self.unreachableMessage
-        case .failed(.approvalTimedOut):
-            statusMessage = Self.approvalTimedOutMessage
-        case .idle, .connecting, .awaitingApproval, .failed(.denied), .failed(.identityChanged):
+        case .failed(.unreachable), .failed(.approvalTimedOut):
+            // While a power toggle runs, its outcome explains what happened.
+            if !powerBusy {
+                statusMessage = state == .failed(.unreachable) ? Self.unreachableMessage : Self.approvalTimedOutMessage
+            }
+        case .idle:
             break
         }
         if state != .connected { repeater.end() }
@@ -377,19 +405,27 @@ final class AppModel {
             statusMessage = onWiFi ? "Choose a TV first." : Self.notOnWiFiMessage
             return
         }
-        powerBusy = true
+        powerBusyTVs.insert(id)
         statusMessage = nil
-        let power = power, session = handle.session
+        let power = powerController(for: id), session = handle.session
         Task { [weak self] in
             let outcome = await power.togglePower(tv: tv, sender: session)
             guard let self else { return }
-            self.powerBusy = false
-            guard let outcome, handle === self.current else { return }
-            self.powerFinished(outcome, tv: id)
+            self.powerBusyTVs.remove(id)
+            // Only report on the TV still selected.
+            guard let outcome, id == self.selectedID, let current = self.current else { return }
+            self.powerFinished(outcome, tv: id, on: current)
         }
     }
 
-    private func powerFinished(_ outcome: PowerOutcome, tv id: TVID) {
+    private func powerController(for id: TVID) -> any PowerToggling {
+        if let existing = powerControllers[id] { return existing }
+        let controller = env.makePowerController()
+        powerControllers[id] = controller
+        return controller
+    }
+
+    private func powerFinished(_ outcome: PowerOutcome, tv id: TVID, on handle: SessionHandle) {
         switch outcome {
         case .turnedOff:
             rescan()
@@ -402,9 +438,10 @@ final class AppModel {
             statusMessage = Self.noMACKnownMessage
         case .notOnWiFi:
             statusMessage = Self.notOnWiFiMessage
-        case .failed(.identityChanged), .failed(.denied):
-            if case .failed(let error) = outcome { sessionState = .failed(error) }
-            rebuildTVs()
+        case .failed(.identityChanged):
+            sessionStateChanged(.failed(.identityChanged), on: handle)
+        case .failed(.denied):
+            sessionStateChanged(.failed(.denied), on: handle)
         case .failed(.unreachable), .failed(.approvalTimedOut):
             statusMessage = Self.powerUnreachableMessage
         }
@@ -412,17 +449,22 @@ final class AppModel {
 
     // MARK: - Managing TVs
 
+    /// Sets the TV's label; nil, empty or whitespace-only clears it.
     func rename(_ id: TVID, to label: String?) {
-        env.labels.setLabel(label, for: id)
+        let trimmed = label?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        env.labels.setLabel(trimmed.isEmpty ? nil : trimmed, for: id)
         rebuildTVs()
     }
 
     /// Removes the TV's registry entry, label and credentials, disconnecting it if selected.
+    /// Never selects another TV; a later scan may, if exactly one TV remains.
     func forget(_ id: TVID) {
-        var teardown: Task<Void, Never>?
+        // In-flight scan results must not record the TV again.
+        if scanning { cancelScan() }
+        forgottenThisScan.insert(id)
         if id == selectedID {
             repeater.end()
-            teardown = closeSession()
+            closeSession()
             selectedID = nil
             env.userDefaults.removeObject(forKey: Self.selectedTVKey)
             statusMessage = nil
@@ -431,12 +473,10 @@ final class AppModel {
         saveRegistry()
         seen[id] = nil
         env.labels.setLabel(nil, for: id)
-        // After the disconnect, so a session mid-pairing cannot store credentials again.
+        // After the disconnect, so a session mid-pairing cannot store credentials again, and before
+        // any new session (which waits for `teardown`) could store fresh ones.
         let credentials = env.credentials
-        Task {
-            await teardown?.value
-            credentials.delete(id)
-        }
+        afterTeardown { credentials.delete(id) }
         rebuildTVs()
     }
 
@@ -451,6 +491,7 @@ final class AppModel {
             Self.log.info("No Samsung TV at manual address: \(String(describing: error), privacy: .public)")
             return false
         }
+        forgottenThisScan.remove(info.id) // explicitly added again
         seen[info.id] = info
         registry.record(info, at: .now)
         saveRegistry()
@@ -463,8 +504,10 @@ final class AppModel {
     func repair() {
         guard let id = selectedID else { return }
         statusMessage = nil
+        closeSession()
         let credentials = env.credentials
-        openSession(id, prepare: { credentials.delete(id) })
+        afterTeardown { credentials.delete(id) }
+        openSession(id)
         rebuildTVs()
     }
 

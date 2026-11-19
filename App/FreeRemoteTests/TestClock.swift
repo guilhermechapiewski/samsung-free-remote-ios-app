@@ -1,4 +1,5 @@
 import Synchronization
+import Testing
 
 /// Manual clock for deterministic tests: time only moves on `advance(by:)`, which resumes every
 /// sleeper whose deadline has been reached. Cancelled sleepers are removed and throw
@@ -72,8 +73,18 @@ final class TestClock: Clock {
         for sleeper in due { sleeper.continuation.resume() }
     }
 
-    /// Suspends (yielding) until exactly `count` sleepers are suspended.
-    func waitForSleepers(_ count: Int) async {
-        while sleeperCount != count { await Task.yield() }
+    /// Suspends (yielding) until exactly `count` sleepers are suspended; records a test failure
+    /// instead of hanging if that does not happen within 10 000 yields. Runs on the caller's actor,
+    /// so each yield lets that actor's queued work (e.g. main-actor tasks) run.
+    func waitForSleepers(
+        _ count: Int, isolation: isolated (any Actor)? = #isolation, sourceLocation: SourceLocation = #_sourceLocation
+    ) async {
+        for _ in 0..<10_000 {
+            if sleeperCount == count { return }
+            await Task.yield()
+        }
+        if sleeperCount != count {
+            Issue.record("Expected \(count) sleepers, found \(sleeperCount)", sourceLocation: sourceLocation)
+        }
     }
 }

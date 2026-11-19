@@ -19,6 +19,45 @@ private func knownTV(_ i: TVDeviceInfo) -> KnownTV {
             lastSeen: Date(timeIntervalSince1970: 0))
 }
 
+/// Whether the fake device is on Wi-Fi.
+private final class WiFiSwitch: Sendable {
+    private let state: Mutex<Bool>
+    init(_ on: Bool) { state = Mutex(on) }
+    var isOn: Bool {
+        get { state.withLock { $0 } }
+        set { state.withLock { $0 = newValue } }
+    }
+}
+
+/// Lets a test hold async work until it opens the gate (open by default).
+private final class Gate: Sendable {
+    private let state = Mutex<(isOpen: Bool, waiters: [CheckedContinuation<Void, Never>])>((true, []))
+
+    var waiting: Int { state.withLock { $0.waiters.count } }
+
+    func close() { state.withLock { $0.isOpen = false } }
+
+    func open() {
+        let waiters = state.withLock { s in
+            s.isOpen = true
+            defer { s.waiters = [] }
+            return s.waiters
+        }
+        for waiter in waiters { waiter.resume() }
+    }
+
+    func wait() async {
+        await withCheckedContinuation { (c: CheckedContinuation<Void, Never>) in
+            let now = state.withLock { s in
+                if s.isOpen { return true }
+                s.waiters.append(c)
+                return false
+            }
+            if now { c.resume() }
+        }
+    }
+}
+
 private final class FakeSession: RemoteSessionProtocol {
     struct Log {
         var connects = 0
@@ -35,10 +74,12 @@ private final class FakeSession: RemoteSessionProtocol {
     private let stateContinuation: AsyncStream<SessionState>.Continuation
     let keyboardContinuation: AsyncStream<Bool>.Continuation
     private let log = Mutex(Log())
+    private let disconnectGate: Gate
 
-    init(id: TVID, host: String) {
+    init(id: TVID, host: String, disconnectGate: Gate) {
         self.id = id
         self.host = host
+        self.disconnectGate = disconnectGate
         (states, stateContinuation) = AsyncStream.makeStream()
         (keyboardEvents, keyboardContinuation) = AsyncStream.makeStream()
     }
@@ -53,7 +94,10 @@ private final class FakeSession: RemoteSessionProtocol {
 
     var currentState: SessionState { log.withLock { $0.current } }
     func connect() async { log.withLock { $0.connects += 1 } }
-    func disconnect() async { log.withLock { $0.disconnects += 1 } }
+    func disconnect() async {
+        await disconnectGate.wait()
+        log.withLock { $0.disconnects += 1 }
+    }
 
     func send(_ key: RemoteKey, _ action: KeyAction) async throws(SessionError) {
         try log.withLock { (l: inout Log) throws(SessionError) in
@@ -90,11 +134,13 @@ private final class FakeDiscovery: Sendable {
 
 private final class FakeSessions: Sendable {
     private let all = Mutex<[FakeSession]>([])
+    /// Holds every session's `disconnect()` while closed.
+    let disconnectGate = Gate()
     var list: [FakeSession] { all.withLock { $0 } }
     var last: FakeSession? { list.last }
 
     func make(_ id: TVID, _ host: String) -> FakeSession {
-        let session = FakeSession(id: id, host: host)
+        let session = FakeSession(id: id, host: host, disconnectGate: disconnectGate)
         all.withLock { $0.append(session) }
         return session
     }
@@ -136,9 +182,12 @@ private final class FakeKnownTVStore: KnownTVPersisting {
 private final class FakePower: PowerToggling {
     let outcome: PowerOutcome?
     let calls = Mutex<[TVID]>([])
+    /// Holds every toggle while closed.
+    let gate = Gate()
     init(_ outcome: PowerOutcome?) { self.outcome = outcome }
     func togglePower(tv: KnownTV, sender: any PowerKeySending) async -> PowerOutcome? {
         calls.withLock { $0.append(tv.id) }
+        await gate.wait()
         return outcome
     }
 }
@@ -165,12 +214,14 @@ private struct Harness {
     let power: FakePower
     let fetcher: FakeFetcher
     let clock = TestClock()
+    let wifi: WiFiSwitch
     let defaults: UserDefaults
     let model: AppModel
 
     init(known: [TVDeviceInfo] = [], selected: TVID? = nil, wifi: Bool = true,
          power: PowerOutcome? = .turnedOn, fetchable: [TVDeviceInfo] = []) {
         store = FakeKnownTVStore(known.map(knownTV))
+        self.wifi = WiFiSwitch(wifi)
         self.power = FakePower(power)
         fetcher = FakeFetcher(fetchable)
         defaults = UserDefaults(suiteName: "AppModelTests.\(UUID().uuidString)")!
@@ -185,7 +236,7 @@ private struct Harness {
             credentials: credentials,
             labels: labels,
             knownTVStore: store,
-            wifiInterface: { wifi ? iface : nil },
+            wifiInterface: { [wifi = self.wifi] in wifi.isOn ? iface : nil },
             clock: clock,
             userDefaults: defaults
         )
@@ -238,11 +289,16 @@ private let tvC = info("uuid:c", host: "192.168.1.12", name: "Alpha", model: "QE
     @Test func discoveredTVsListedOnlineFirst() async {
         let h = Harness(known: [tvC])
         await h.appear()
-        #expect(h.model.screen == .ready) // a known TV exists
+        #expect(h.model.screen == .chooseTV) // a known TV exists, none selected
         h.discovery.yield(.found(tvB))
         h.discovery.yield(.found(tvA))
         h.discovery.finish()
         await settle { h.model.tvs.count == 3 && h.model.tvs.first?.title == "Bravo" }
+        await drain()
+        // Several TVs: the user chooses.
+        #expect(h.model.selectedID == nil)
+        #expect(h.sessions.list.isEmpty)
+        #expect(h.model.screen == .chooseTV)
         #expect(h.model.tvs.map(\.title) == ["Bravo", "Zed", "Alpha"])
         #expect(h.model.tvs.map(\.subtitle) == ["QE55", "UE43", "QE65"])
         #expect(h.model.tvs.map(\.status) == [.on, .asleep, .unreachable])
@@ -274,9 +330,14 @@ private let tvC = info("uuid:c", host: "192.168.1.12", name: "Alpha", model: "QE
         await h.appear()
         #expect(h.model.tvs.map(\.title) == ["Den"])
 
-        h.model.rename(tvA.id, to: "Kitchen")
+        h.model.rename(tvA.id, to: "  Kitchen ")
         #expect(h.labels.label(for: tvA.id) == "Kitchen")
         #expect(h.model.tvs.map(\.title) == ["Kitchen"])
+
+        h.model.rename(tvA.id, to: "   ")
+        #expect(h.labels.label(for: tvA.id) == nil)
+        #expect(h.model.tvs.map(\.title) == ["Bravo"])
+        h.model.rename(tvA.id, to: "Kitchen")
 
         // A change synced from another device refreshes titles.
         h.labels.setLabel(nil, for: tvA.id)
@@ -513,12 +574,40 @@ private let tvC = info("uuid:c", host: "192.168.1.12", name: "Alpha", model: "QE
             == "Couldn't turn on the TV. Turn on “Power On with Mobile” in the TV's network settings, then try again.")
     }
 
-    @Test func powerIdentityChangedShowsIdentityState() async {
+    @Test func powerIdentityChangedShowsIdentityStateAndEndsHold() async {
         let h = Harness(known: [tvA], selected: tvA.id, power: .failed(.identityChanged))
         await h.appear()
+        await h.connectCurrent()
+        h.model.beginHold(.volumeUp)
+        await h.clock.waitForSleepers(1)
         h.model.togglePower()
-        await settle { !h.model.powerBusy }
+        await settle { !h.model.powerBusy && h.model.screen == .identityChanged }
         #expect(h.model.screen == .identityChanged)
+        await h.clock.waitForSleepers(0)
+    }
+
+    @Test func powerBusyIsPerTVAndSilencesUnreachable() async throws {
+        let h = Harness(known: [tvA, tvB], selected: tvA.id, power: .turnedOn)
+        await h.appear()
+        await h.connectCurrent()
+        h.power.gate.close()
+        h.model.togglePower()
+        #expect(h.model.powerBusy)
+        await settle { h.power.gate.waiting == 1 }
+
+        // The session giving up while power is in flight does not post its own message.
+        h.sessions.last?.emit(.failed(.unreachable))
+        await settle { h.model.tvs.first { $0.id == tvA.id }?.status == .unreachable }
+        #expect(h.model.statusMessage == nil)
+
+        h.model.select(tvB.id)
+        #expect(!h.model.powerBusy)
+        h.model.select(tvA.id)
+        #expect(h.model.powerBusy)
+
+        h.power.gate.open()
+        await settle { !h.model.powerBusy }
+        #expect(!h.model.powerBusy)
     }
 
     @Test func selectingAnotherTVDisconnectsPrevious() async throws {
@@ -540,6 +629,147 @@ private let tvC = info("uuid:c", host: "192.168.1.12", name: "Alpha", model: "QE
         first.emit(.failed(.denied))
         await drain()
         #expect(h.model.screen == .ready)
+    }
+
+    @Test func multipleTVsRequireChoice() async {
+        let h = Harness()
+        await h.appear()
+        h.discovery.yield(.found(tvA))
+        h.discovery.yield(.found(tvB))
+        h.discovery.finish()
+        await settle { h.model.tvs.count == 2 }
+        await drain()
+        #expect(h.model.screen == .chooseTV)
+        #expect(h.model.selectedID == nil)
+        #expect(h.sessions.list.isEmpty)
+
+        h.model.select(tvB.id)
+        #expect(h.model.screen == .ready)
+    }
+
+    @Test func singleTVAutoSelected() async {
+        let h = Harness()
+        await h.appear()
+        h.discovery.yield(.found(tvA))
+        await settle { h.model.tvs.count == 1 }
+        // Not before the scan has finished: another TV may still answer.
+        #expect(h.model.selectedID == nil)
+        #expect(h.model.screen == .chooseTV)
+
+        h.discovery.finish()
+        await settle { h.model.selectedID == tvA.id && h.sessions.last?.snapshot.connects == 1 }
+        #expect(h.model.selectedID == tvA.id)
+        #expect(h.sessions.list.map(\.host) == [tvA.host])
+        #expect(h.model.screen == .ready)
+    }
+
+    @Test func restoredSelectionMissingFromRegistryShowsChooseTV() async {
+        let h = Harness(known: [tvA, tvB], selected: TVID(rawValue: "uuid:gone"))
+        await h.appear()
+        #expect(h.model.selectedID == nil)
+        #expect(h.defaults.string(forKey: "selectedTV") == nil)
+        #expect(h.model.screen == .chooseTV)
+        h.discovery.finish()
+        await drain()
+        #expect(h.model.selectedID == nil)
+        #expect(h.sessions.list.isEmpty)
+        #expect(h.model.screen == .chooseTV)
+    }
+
+    @Test func forgetDuringScanDoesNotResurrect() async throws {
+        let h = Harness(known: [tvA, tvB], selected: tvA.id, fetchable: [tvA])
+        await h.appear()
+        await h.connectCurrent()
+        h.sessions.disconnectGate.close()
+
+        h.model.forget(tvA.id)
+        // A result for the forgotten TV still in flight from the scan.
+        h.discovery.yield(.found(tvA))
+        h.discovery.finish()
+        await drain()
+        #expect(h.store.load().tvs[tvA.id] == nil)
+        #expect(h.model.tvs.map(\.id) == [tvB.id])
+        #expect(h.model.selectedID == nil) // forget never selects another TV
+        // Credentials go only after the disconnect…
+        #expect(h.credentials.deleted.withLock { $0 }.isEmpty)
+
+        // …and a session for the same TV, added back at once, waits for both.
+        #expect(await h.model.addManually(host: tvA.host))
+        await drain()
+        #expect(h.sessions.list.count == 2)
+        #expect(h.sessions.last?.snapshot.connects == 0)
+        h.sessions.disconnectGate.open()
+        await settle { h.sessions.last?.snapshot.connects == 1 }
+        #expect(h.credentials.deleted.withLock { $0 } == [tvA.id])
+        #expect(h.sessions.last?.snapshot.connects == 1)
+    }
+
+    @Test func foregroundWaitsForPreviousDisconnect() async {
+        let h = Harness(known: [tvA], selected: tvA.id)
+        await h.appear()
+        await h.connectCurrent()
+        h.sessions.disconnectGate.close()
+        h.model.scenePhaseChanged(.background)
+        h.model.scenePhaseChanged(.active)
+        await settle { h.sessions.list.count == 2 }
+        await drain()
+        #expect(h.sessions.last?.snapshot.connects == 0)
+
+        h.sessions.disconnectGate.open()
+        await settle { h.sessions.last?.snapshot.connects == 1 }
+        #expect(h.sessions.list.first?.snapshot.disconnects == 1)
+        #expect(h.sessions.last?.snapshot.connects == 1)
+    }
+
+    @Test func losingWiFiEndsHoldAndClosesSession() async throws {
+        let h = Harness(known: [tvA], selected: tvA.id)
+        await h.appear()
+        await h.connectCurrent()
+        let session = try #require(h.sessions.last)
+        h.model.beginHold(.up)
+        await h.clock.waitForSleepers(1)
+
+        h.wifi.isOn = false
+        h.model.rescan()
+        #expect(h.model.screen == .noWiFi)
+        await h.clock.waitForSleepers(0)
+        await settle { session.snapshot.disconnects == 1 }
+        #expect(session.snapshot.disconnects == 1)
+        #expect(h.discovery.scans.count == 1)
+    }
+
+    @Test func localNetworkDeniedPersistsUntilFound() async {
+        let h = Harness()
+        await h.appear()
+        h.discovery.yield(.localNetworkDenied)
+        h.discovery.finish()
+        await settle { h.model.screen == .localNetworkDenied }
+
+        h.model.rescan()
+        await settle { h.discovery.scans.count == 2 }
+        #expect(h.model.screen == .localNetworkDenied)
+
+        h.discovery.yield(.found(tvA))
+        await settle { h.model.screen != .localNetworkDenied }
+        #expect(h.model.screen == .chooseTV)
+    }
+
+    @Test func statusMessageFollowsSessionProgress() async {
+        let h = Harness(known: [tvA], selected: tvA.id)
+        await h.appear()
+        await settle { h.sessions.last?.snapshot.connects == 1 }
+        let session = h.sessions.last
+        session?.emit(.failed(.unreachable))
+        await settle { h.model.statusMessage == AppModel.unreachableMessage }
+        session?.emit(.connecting)
+        await settle { h.model.statusMessage == nil }
+        #expect(h.model.statusMessage == nil)
+
+        session?.emit(.failed(.approvalTimedOut))
+        await settle { h.model.statusMessage == AppModel.approvalTimedOutMessage }
+        session?.emit(.failed(.denied))
+        await settle { h.model.screen == .pairingDenied }
+        #expect(h.model.statusMessage == nil)
     }
 
     @Test func playPauseAlternates() async throws {
