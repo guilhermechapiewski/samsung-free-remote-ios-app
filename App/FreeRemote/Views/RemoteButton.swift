@@ -77,8 +77,34 @@ struct RemoteButton<Label: View>: View {
     }
 }
 
+/// Decides whether a hold key's button action should send one press. A touch already sends its
+/// key through the press gesture (`onBegin`/`onEnd`); the action alone is an accessibility
+/// activation (VoiceOver, Voice Control, Switch Control, Full Keyboard Access), which sends one press.
+struct HoldActivationGate {
+    /// How long after a touch ends its button action may still arrive.
+    static let touchActionWindow: Duration = .milliseconds(500)
+
+    private var touching = false
+    private var lastTouchEnd: ContinuousClock.Instant?
+
+    mutating func pressChanged(_ pressed: Bool, at now: ContinuousClock.Instant) {
+        touching = pressed
+        if !pressed { lastTouchEnd = now }
+    }
+
+    /// Whether the button action at `now` is an activation that should press the key once.
+    mutating func shouldPress(onActionAt now: ContinuousClock.Instant) -> Bool {
+        if touching { return false }
+        if let end = lastTouchEnd, now - end < Self.touchActionWindow {
+            lastTouchEnd = nil // this was the touch's own action
+            return false
+        }
+        return true
+    }
+}
+
 /// A key that repeats while held: `onBegin` on touch-down, `onEnd` on touch-up or cancel.
-/// VoiceOver's activate sends one press (`onPress`) instead, since a hold cannot be expressed there.
+/// An accessibility activation sends one press (`onPress`) instead, since a hold cannot be expressed there.
 struct HoldButton<Label: View>: View {
     let accessibilityLabel: String
     let onBegin: () -> Void
@@ -87,12 +113,18 @@ struct HoldButton<Label: View>: View {
     @ViewBuilder let label: () -> Label
 
     @State private var presses = 0
+    @State private var gate = HoldActivationGate()
 
     var body: some View {
-        Button {} label: {
+        Button {
+            guard gate.shouldPress(onActionAt: .now) else { return }
+            presses += 1
+            onPress()
+        } label: {
             label()
         }
         .buttonStyle(RemoteKeyStyle { pressed in
+            gate.pressChanged(pressed, at: .now)
             if pressed {
                 presses += 1
                 onBegin()
@@ -102,10 +134,6 @@ struct HoldButton<Label: View>: View {
         })
         .sensoryFeedback(.impact(weight: .light), trigger: presses)
         .remoteKeyAccessibility(accessibilityLabel, hint: nil)
-        .accessibilityAction {
-            presses += 1
-            onPress()
-        }
     }
 }
 

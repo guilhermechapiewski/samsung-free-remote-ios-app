@@ -46,7 +46,7 @@ import SamsungTVKit
     }
 
     @Test func demoEnvironmentStartsConnectedToLivingRoom() async {
-        let model = AppModel(env: DemoEnvironment.make())
+        let model = AppModel(env: DemoEnvironment.make(.remote))
         model.onAppear()
         for _ in 0..<10_000 where !(model.isConnected && model.tvs.count == 3) { await Task.yield() }
         #expect(model.screen == .ready)
@@ -55,4 +55,68 @@ import SamsungTVKit
         #expect(model.tvs.first { $0.id == model.selectedID }?.title == "Living Room")
         #expect(model.tvs.first { $0.title == "Living Room" }?.status == .on)
     }
+
+    @Test func holdKeyActivationWithoutTouchPressesOnce() {
+        var gate = HoldActivationGate()
+        let now = ContinuousClock.now
+        let pressed1 = gate.shouldPress(onActionAt: now)
+        #expect(pressed1)
+    }
+
+    @Test func holdKeyTouchIsNotSentTwice() {
+        var gate = HoldActivationGate()
+        let now = ContinuousClock.now
+        gate.pressChanged(true, at: now)
+        // The action may arrive before or after the release is observed.
+        let pressed2 = gate.shouldPress(onActionAt: now + .milliseconds(80))
+        #expect(!pressed2)
+        gate.pressChanged(false, at: now + .milliseconds(90))
+
+        gate.pressChanged(true, at: now + .seconds(1))
+        gate.pressChanged(false, at: now + .seconds(1) + .milliseconds(80))
+        let pressed3 = gate.shouldPress(onActionAt: now + .seconds(1) + .milliseconds(90))
+        #expect(!pressed3)
+    }
+
+    @Test func holdKeyActivationLongAfterACancelledTouchPresses() {
+        var gate = HoldActivationGate()
+        let now = ContinuousClock.now
+        gate.pressChanged(true, at: now)
+        gate.pressChanged(false, at: now + .milliseconds(50)) // dragged off: no action
+        let pressed4 = gate.shouldPress(onActionAt: now + .seconds(3))
+        #expect(pressed4)
+    }
+
+    @Test func stateCardCopyIsExact() {
+        #expect(StateCard.message(for: .noWiFi) == "Connect to Wi-Fi to control your TV.")
+        #expect(StateCard.message(for: .localNetworkDenied)
+            == "Free Remote needs Local Network access to find your TV.")
+        #expect(StateCard.message(for: .searching) == "Looking for TVs…")
+        #expect(StateCard.message(for: .noTVs)
+            == "No TVs found. Make sure your iPhone and TV are on the same Wi-Fi network and the TV is on.")
+        #expect(StateCard.message(for: .chooseTV) == "Choose your TV")
+        #expect(StateCard.message(for: .pairing) == "Look at your TV and choose Allow.")
+        #expect(StateCard.message(for: .pairingDenied)
+            == "Your TV blocked this iPhone. On the TV, open Settings → General → External Device Manager → "
+            + "Device Connection Manager → Device List, allow Free Remote, then tap Try Again.")
+        #expect(StateCard.message(for: .identityChanged)
+            == "This TV's security identity changed (this can happen after a software update). "
+            + "Pair again to continue.")
+        #expect(RenameSheet.note
+            == "This name is only on your devices. To change the name everyone sees, rename the TV in its "
+            + "Settings → General → Device Name.")
+        #expect(AddTVSheet.invalidAddressMessage == "Enter a local IP address like 192.168.0.20.")
+    }
+
+    @Test func demoKeyLogRecordsLastKey() async {
+        let log = DemoKeyLog()
+        let model = AppModel(env: DemoEnvironment.make(.remote, keyLog: log))
+        model.onAppear()
+        for _ in 0..<10_000 where !model.isConnected { await Task.yield() }
+        model.press(.digit5)
+        for _ in 0..<10_000 where log.lastKey == nil { await Task.yield() }
+        #expect(log.lastKey == "KEY_5")
+        #expect(log.count == 1)
+    }
 }
+

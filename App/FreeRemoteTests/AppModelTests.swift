@@ -800,4 +800,52 @@ private let tvC = info("uuid:c", host: "192.168.1.12", name: "Alpha", model: "QE
         await settle { !h.model.keyboardRequested }
         #expect(!h.model.keyboardRequested)
     }
+
+    @Test func turningOffSilencesUnreachableAndShowsAsleep() async throws {
+        let h = Harness(known: [tvA], selected: tvA.id, power: .turnedOff)
+        await h.appear()
+        await h.connectCurrent()
+        let session = try #require(h.sessions.last)
+        h.model.togglePower()
+        await settle { !h.model.powerBusy && h.discovery.scans.count == 2 }
+
+        // The TV was turned off on purpose: its session giving up is not an error.
+        session.emit(.failed(.unreachable))
+        await settle { h.model.tvs.first?.status != .on }
+        #expect(h.model.statusMessage == nil)
+        #expect(h.model.tvs.first { $0.id == tvA.id }?.status == .asleep)
+        session.emit(.failed(.approvalTimedOut))
+        await drain()
+        #expect(h.model.statusMessage == nil)
+        // The scan after turning off does not find it; it is still shown as asleep.
+        h.discovery.finish()
+        await settle { !h.model.tvs.isEmpty && h.discovery.scans.count == 2 }
+        await drain()
+        #expect(h.model.tvs.first { $0.id == tvA.id }?.status == .asleep)
+
+        // Once the TV is back, failures are reported again.
+        session.emit(.connected)
+        await settle { h.model.isConnected }
+        session.emit(.failed(.unreachable))
+        await settle { h.model.statusMessage == AppModel.unreachableMessage }
+        #expect(h.model.statusMessage == AppModel.unreachableMessage)
+        #expect(h.model.tvs.first { $0.id == tvA.id }?.status == .unreachable)
+    }
+
+    @Test func powerWithoutSessionExplainsWiFiOrTurnsOn() async {
+        let h = Harness(known: [tvA], selected: tvA.id, wifi: false, power: .turnedOn)
+        h.model.onAppear()
+        #expect(h.model.screen == .noWiFi)
+        h.model.togglePower()
+        #expect(h.model.statusMessage == AppModel.notOnWiFiMessage)
+        #expect(h.power.calls.withLock { $0 }.isEmpty)
+
+        // Wi-Fi came back but nothing has refreshed yet: Power still works.
+        h.wifi.isOn = true
+        h.model.togglePower()
+        #expect(h.model.statusMessage != "Choose a TV first.")
+        await settle { h.power.calls.withLock { $0 } == [tvA.id] }
+        #expect(h.power.calls.withLock { $0 } == [tvA.id])
+        #expect(h.model.screen != .noWiFi)
+    }
 }

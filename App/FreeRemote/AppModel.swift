@@ -40,6 +40,7 @@ final class AppModel {
     static let powerUnreachableMessage =
         "Couldn't reach the TV to change its power. Make sure it's on the same Wi-Fi network, then try again."
     static let sendFailedMessage = "The TV didn't receive that. Reconnecting…"
+    static let turnedOffMessage = "The TV is off. Press Power to turn it on."
 
     private static let log = Logger(subsystem: "FreeRemote", category: "AppModel")
 
@@ -62,6 +63,9 @@ final class AppModel {
     private var seen: [TVID: TVDeviceInfo] = [:]
     /// TVs with a power toggle in flight.
     private var powerBusyTVs: Set<TVID> = []
+    /// TVs this app just turned off: their sessions failing is expected, so it is not reported, and
+    /// they show as asleep until seen on again.
+    private var turnedOffTVs: Set<TVID> = []
 
     @ObservationIgnored private let env: AppEnvironment
     /// One power controller per TV, so each TV has its own in-flight guard.
@@ -105,6 +109,8 @@ final class AppModel {
 
     /// The selected TV's session is connected, so keys can be sent.
     var isConnected: Bool { current != nil && sessionState == .connected }
+
+    private var selectedTurnedOff: Bool { selectedID.map(turnedOffTVs.contains) ?? false }
 
     private var sessionFailed: Bool {
         if case .failed = sessionState { return true }
@@ -208,6 +214,7 @@ final class AppModel {
             localNetworkDenied = false // evidently granted
             foundThisScan.insert(info.id)
             seen[info.id] = info
+            if info.powerState == .on { turnedOffTVs.remove(info.id) }
             registry.record(info, at: .now)
             saveRegistry()
             if info.id == selectedID, needsNewSession(for: info) {
@@ -293,13 +300,15 @@ final class AppModel {
     private func sessionStateChanged(_ state: SessionState, on handle: SessionHandle) {
         guard handle === current else { return }
         sessionState = state
+        if state == .connected, let id = selectedID { turnedOffTVs.remove(id) }
         switch state {
         case .connecting, .awaitingApproval, .connected, .failed(.denied), .failed(.identityChanged):
             // Progress makes older explanations stale; failure screens explain themselves.
             statusMessage = nil
         case .failed(.unreachable), .failed(.approvalTimedOut):
-            // While a power toggle runs, its outcome explains what happened.
-            if !powerBusy {
+            // While a power toggle runs, its outcome explains what happened; a TV just turned off
+            // is expected to go away.
+            if !powerBusy, !selectedTurnedOff {
                 statusMessage = state == .failed(.unreachable) ? Self.unreachableMessage : Self.approvalTimedOutMessage
             }
         case .idle:
@@ -388,6 +397,8 @@ final class AppModel {
             return "Your TV blocked this iPhone. Allow Free Remote in the TV's Device Connection Manager."
         case .failed(.identityChanged):
             return "This TV's security identity changed. Pair again to continue."
+        case .failed(.unreachable) where selectedTurnedOff, .failed(.approvalTimedOut) where selectedTurnedOff:
+            return Self.turnedOffMessage
         case .failed(.unreachable):
             return Self.unreachableMessage
         case .failed(.approvalTimedOut):
@@ -401,8 +412,16 @@ final class AppModel {
 
     func togglePower() {
         guard !powerBusy else { return }
-        guard let id = selectedID, let tv = registry.tvs[id], let handle = current else {
-            statusMessage = onWiFi ? "Choose a TV first." : Self.notOnWiFiMessage
+        guard let id = selectedID, let tv = registry.tvs[id] else {
+            statusMessage = "Choose a TV first."
+            return
+        }
+        if current == nil {
+            // No session, e.g. Wi-Fi was lost: check again, reconnecting if Wi-Fi is back.
+            refresh()
+        }
+        guard let handle = current else {
+            statusMessage = onWiFi ? Self.unreachableMessage : Self.notOnWiFiMessage
             return
         }
         powerBusyTVs.insert(id)
@@ -428,8 +447,11 @@ final class AppModel {
     private func powerFinished(_ outcome: PowerOutcome, tv id: TVID, on handle: SessionHandle) {
         switch outcome {
         case .turnedOff:
+            turnedOffTVs.insert(id)
+            rebuildTVs()
             rescan()
         case .turnedOn:
+            turnedOffTVs.remove(id)
             if sessionState != .connected { openSession(id) }
             rescan()
         case .failedToWake:
@@ -472,6 +494,7 @@ final class AppModel {
         registry.forget(id)
         saveRegistry()
         seen[id] = nil
+        turnedOffTVs.remove(id)
         env.labels.setLabel(nil, for: id)
         // After the disconnect, so a session mid-pairing cannot store credentials again, and before
         // any new session (which waits for `teardown`) could store fresh ones.
@@ -532,10 +555,12 @@ final class AppModel {
             switch sessionState {
             case .awaitingApproval: return .pairing
             case .connected: return .on
-            case .failed(.unreachable), .failed(.approvalTimedOut): return .unreachable
+            case .failed(.unreachable), .failed(.approvalTimedOut):
+                return turnedOffTVs.contains(id) ? .asleep : .unreachable
             case .idle, .connecting, .failed(.denied), .failed(.identityChanged): break
             }
         }
+        if turnedOffTVs.contains(id), seen[id]?.powerState != .on { return .asleep }
         guard let info = seen[id] else { return .unreachable }
         return info.powerState == .on ? .on : .asleep
     }
