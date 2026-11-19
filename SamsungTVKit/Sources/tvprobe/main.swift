@@ -32,17 +32,40 @@ final class FileCredentialStore: CredentialStore {
     }
 
     private func readAll() -> [String: TVCredentials] {
-        guard let data = try? Data(contentsOf: url) else { return [:] }
-        return (try? JSONDecoder().decode([String: TVCredentials].self, from: data)) ?? [:]
+        guard FileManager.default.fileExists(atPath: url.path) else { return [:] }
+        do {
+            return try JSONDecoder().decode([String: TVCredentials].self, from: Data(contentsOf: url))
+        } catch {
+            fail("credentials file \(url.path) is unreadable or corrupt (\(error)); refusing to overwrite it")
+        }
     }
 
     private func writeAll(_ all: [String: TVCredentials]) throws {
         let dir = url.deletingLastPathComponent()
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true,
                                                 attributes: [.posixPermissions: 0o700])
+        try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: dir.path)
         let data = try JSONEncoder().encode(all)
-        try data.write(to: url, options: .atomic)
-        try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
+        let tmp = dir.appendingPathComponent(".credentials.\(UUID().uuidString).tmp").path
+        let fd = open(tmp, O_WRONLY | O_CREAT | O_EXCL, 0o600)
+        guard fd >= 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
+        do {
+            try data.withUnsafeBytes { buf in
+                var offset = 0
+                while offset < buf.count {
+                    let n = write(fd, buf.baseAddress! + offset, buf.count - offset)
+                    if n < 0 { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
+                    offset += n
+                }
+            }
+            guard fsync(fd) == 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
+            close(fd)
+            guard rename(tmp, url.path) == 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
+        } catch {
+            close(fd)
+            unlink(tmp)
+            throw error
+        }
     }
 
     func load(_ id: TVID) -> TVCredentials? {
@@ -164,19 +187,26 @@ func hold(_ host: String, _ keyName: String, _ seconds: Double) async {
     let k = parseKey(keyName)
     let session = await makeSession(host: host)
     await waitConnected(session)
+    var pressed = false
     do {
         out("press/release for \(seconds)s")
         try await session.send(k, .press)
+        pressed = true
         try await Task.sleep(for: .seconds(seconds))
         try await session.send(k, .release)
+        pressed = false
         try await Task.sleep(for: .seconds(1))
-        out("repeated click every 150ms for \(seconds)s")
+        guard case .clickEvery(let interval) = RepeatStrategy.default else { fail("default strategy is not clickEvery") }
+        out("repeated click every \(interval) for \(seconds)s")
         let end = ContinuousClock.now + .seconds(seconds)
         while ContinuousClock.now < end {
             try await session.send(k, .click)
-            try await Task.sleep(for: .milliseconds(150))
+            try await Task.sleep(for: interval)
         }
-    } catch { fail("hold failed: \(error)") }
+    } catch {
+        if pressed { try? await session.send(k, .release) }
+        fail("hold failed: \(error)")
+    }
     await session.disconnect()
 }
 
