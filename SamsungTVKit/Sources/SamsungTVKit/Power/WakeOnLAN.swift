@@ -14,18 +14,36 @@ public enum WakeOnLAN {
         return data
     }
 
-    /// Destinations: the interface's directed broadcast, then the limited broadcast (deduplicated).
-    static func targets(via: IPv4Interface) -> [String] {
-        var list = [via.broadcast]
-        if via.broadcast != "255.255.255.255" { list.append("255.255.255.255") }
+    /// Destinations, deduplicated: `host` (unicast; only if it is a private/link-local address),
+    /// then, when `broadcast` is true, the interface's directed broadcast and the limited broadcast.
+    ///
+    /// Broadcasts need the multicast networking entitlement on iOS. Without it they fail with
+    /// EHOSTUNREACH, and only the unicast packet can reach the TV: that works while the iPhone (or the
+    /// router) still has the TV's hardware address cached, typically for a while after the TV was on.
+    public static func targets(via: IPv4Interface, host: String?, broadcast: Bool) -> [String] {
+        targets(via: via, host: host, broadcast: broadcast, allowLoopback: false)
+    }
+
+    static func targets(via: IPv4Interface, host: String?, broadcast: Bool, allowLoopback: Bool) -> [String] {
+        var list: [String] = []
+        if let host, LocalAddress.isAllowed(host, allowLoopback: allowLoopback) { list.append(host) }
+        if broadcast {
+            for b in [via.broadcast, "255.255.255.255"] where !list.contains(b) { list.append(b) }
+        }
         return list
     }
 
-    /// Sends the magic packet to UDP port 9 on `via.broadcast` and 255.255.255.255, `repeats` times
+    /// Sends the magic packet to UDP port 9 on each of `targets(via:host:broadcast:)`, `repeats` times
     /// (~100 ms apart). Errors are logged, never thrown.
-    public static func send(to mac: MACAddress, via: IPv4Interface, repeats: Int = 3) async {
+    public static func send(
+        to mac: MACAddress, via: IPv4Interface, host: String? = nil, broadcast: Bool = true, repeats: Int = 3
+    ) async {
         let packet = magicPacket(for: mac)
-        let destinations = targets(via: via)
+        let destinations = targets(via: via, host: host, broadcast: broadcast)
+        guard !destinations.isEmpty else {
+            log.error("Wake-on-LAN has no destination (no valid host and broadcast disabled)")
+            return
+        }
         for attempt in 0..<max(repeats, 1) {
             if Task.isCancelled { return }
             if attempt > 0 {

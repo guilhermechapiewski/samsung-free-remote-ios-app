@@ -3,5 +3,6 @@
 DEVELOPMENT_TEAM = YOUR_TEAM_ID
 PRODUCT_BUNDLE_IDENTIFIER = org.example.FreeRemote
 
-// Uncomment once your team has the multicast networking entitlement approved by Apple:
-// FREE_REMOTE_ENTITLEMENTS = App/FreeRemote/FreeRemote+Multicast.entitlements
+// Uncomment once your team has the multicast networking entitlement approved by Apple
+// (enables SSDP discovery and broadcast Wake-on-LAN, and signs with the multicast entitlements file):
+// FREE_REMOTE_MULTICAST = YES

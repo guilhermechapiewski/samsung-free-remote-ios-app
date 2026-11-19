@@ -9,7 +9,8 @@ More screenshots: [`AppStore/screenshots/`](AppStore/screenshots/).
 
 ## Features
 
-- Automatic discovery of Samsung TVs on the local network (Bonjour and SSDP), plus "Add TV by IP address"
+- Automatic discovery of Samsung TVs on the local network (Bonjour, plus SSDP in builds with the multicast
+  entitlement), and "Add TV by IP address"
 - Power on/off (state-aware; Wake-on-LAN from deep standby), volume, mute, channel up/down
 - Circular D-pad with OK, Back, Home, Play/Pause
 - Source, with a long press for HDMI 1–4
@@ -26,6 +27,9 @@ More screenshots: [`AppStore/screenshots/`](AppStore/screenshots/).
   supported.
 - Choose "Allow" on the TV the first time the app connects.
 - To turn the TV on from the app, enable the TV's "Power On with Mobile" (network standby) setting.
+  Version 1.0: a TV that has been off for a long time may need its own remote to turn on.
+- Version 1.0: automatic discovery needs AirPlay on in the TV's settings (on by default); otherwise add the
+  TV by its IP address.
 - Local Network permission granted on the iPhone (Settings > Privacy & Security > Local Network).
 - iPhone with iOS 27 or later.
 
@@ -46,10 +50,13 @@ You need macOS with **Xcode 27.2 or later** and the iOS 27.0 simulator runtime.
    `DEVELOPMENT_TEAM` and `PRODUCT_BUNDLE_IDENTIFIER`. You can skip this to build for the simulator only.
 3. Open `FreeRemote.xcodeproj` and run the `FreeRemote` scheme.
 
-The multicast networking entitlement (SSDP discovery, Wake-on-LAN) must be granted to your team by Apple. Until
-then the app uses `App/FreeRemote/FreeRemote.entitlements` and still discovers TVs over Bonjour and wakes
-them from standby over the control channel. Once approved, point `FREE_REMOTE_ENTITLEMENTS` at
-`App/FreeRemote/FreeRemote+Multicast.entitlements` in `Config/Local.xcconfig`.
+The multicast networking entitlement (SSDP discovery, broadcast Wake-on-LAN) must be granted to your team by
+Apple. Without it (the default, `FREE_REMOTE_MULTICAST = NO`), the app signs with
+`App/FreeRemote/FreeRemote.entitlements`, discovers TVs over Bonjour only, wakes TVs from network standby
+over the control channel, and sends Wake-on-LAN only directly to the TV's last known address (which works
+while the TV's hardware address is still cached on the network). Once your team has the entitlement, set
+`FREE_REMOTE_MULTICAST = YES` in `Config/Local.xcconfig`: that signs with
+`App/FreeRemote/FreeRemote+Multicast.entitlements` and turns on SSDP and broadcast Wake-on-LAN.
 
 ### Tests
 

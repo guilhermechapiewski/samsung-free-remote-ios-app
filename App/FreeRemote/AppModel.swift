@@ -35,6 +35,11 @@ final class AppModel {
 
     static let failedToWakeMessage =
         "Couldn't turn on the TV. Turn on “Power On with Mobile” in the TV's network settings, then try again."
+    /// Without the multicast entitlement only a unicast wake packet can be sent, which a TV that has
+    /// been off for a while may not receive.
+    static let failedToWakeUnicastOnlyMessage =
+        "Couldn't turn on the TV. If it has been off for a while, turn it on with its own remote. "
+        + "Also check that “Power On with Mobile” is on in the TV's network settings."
     static let unreachableMessage = "Couldn't reach the TV. If it's off, press Power to turn it on."
     static let approvalTimedOutMessage =
         "The TV didn't confirm the connection in time. Try again and choose Allow if your TV asks."
@@ -550,7 +555,7 @@ final class AppModel {
             if sessionState != .connected { openSession(id) }
             rescan()
         case .failedToWake:
-            statusMessage = Self.failedToWakeMessage
+            statusMessage = env.multicastEnabled ? Self.failedToWakeMessage : Self.failedToWakeUnicastOnlyMessage
         case .noMACKnown:
             statusMessage = Self.noMACKnownMessage
         case .notOnWiFi:

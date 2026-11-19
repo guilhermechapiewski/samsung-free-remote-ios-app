@@ -50,6 +50,9 @@ struct AppEnvironment {
     var wifiInterface: @Sendable () -> IPv4Interface?
     var clock: any Clock<Duration>
     var userDefaults: UserDefaults
+    /// Whether this build has the multicast networking entitlement (SSDP discovery and broadcast
+    /// Wake-on-LAN). Without it, discovery uses Bonjour only and waking sends a unicast packet only.
+    var multicastEnabled = true
 }
 
 extension AppEnvironment {
@@ -57,13 +60,14 @@ extension AppEnvironment {
     static func live() -> AppEnvironment {
         let credentials = KeychainCredentialStore()
         let discoveryFetcher = HTTPTVInfoFetcher()
+        let multicast = Self.buildHasMulticastEntitlement
         let wifiInterface: @Sendable () -> IPv4Interface? = {
             NetworkInterfaces.wifiIPv4(from: NetworkInterfaces.current())
         }
         return AppEnvironment(
             makeDiscovery: { knownHosts in
                 await DiscoveryCoordinator(
-                    sources: [BonjourSamsungBrowser(), SSDPSearcher()],
+                    sources: multicast ? [BonjourSamsungBrowser(), SSDPSearcher()] : [BonjourSamsungBrowser()],
                     fetcher: discoveryFetcher,
                     knownHosts: knownHosts
                 ).scan()
@@ -74,7 +78,9 @@ extension AppEnvironment {
             makePowerController: {
                 PowerController(
                     fetcher: HTTPTVInfoFetcher(timeout: .seconds(1)),
-                    wake: { mac, interface in await WakeOnLAN.send(to: mac, via: interface) },
+                    wake: { mac, interface, host in
+                        await WakeOnLAN.send(to: mac, via: interface, host: host, broadcast: multicast)
+                    },
                     interface: wifiInterface
                 )
             },
@@ -84,7 +90,14 @@ extension AppEnvironment {
             knownTVStore: FileKnownTVStore(),
             wifiInterface: wifiInterface,
             clock: ContinuousClock(),
-            userDefaults: .standard
+            userDefaults: .standard,
+            multicastEnabled: multicast
         )
+    }
+
+    /// `FRMulticastEnabled` in Info.plist, set from the `FREE_REMOTE_MULTICAST` build setting, which
+    /// also picks the entitlements file (see Config/Base.xcconfig), so the two cannot disagree.
+    static var buildHasMulticastEntitlement: Bool {
+        Bundle.main.object(forInfoDictionaryKey: "FRMulticastEnabled") as? String == "YES"
     }
 }

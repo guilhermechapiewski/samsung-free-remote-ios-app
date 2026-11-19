@@ -9,8 +9,13 @@ Paste the "Notes for the reviewer" section into App Store Connect > App Review I
       account that hosts the repository, in App Store Connect and in `AppStore/listing.md`.
 - [ ] Enable GitHub Pages for the repository (branch `main`, folder `/docs`) and confirm the privacy URL loads.
 - [ ] Record the demo video (see below) and replace the VIDEO LINK line.
-- [ ] Confirm the multicast networking entitlement is approved and the release build uses
-      `App/FreeRemote/FreeRemote+Multicast.entitlements`.
+- [ ] Check which build you are submitting:
+      - **Version 1.0 (no multicast entitlement yet):** `FREE_REMOTE_MULTICAST` is unset or `NO` in
+        `Config/Local.xcconfig`; paste the notes below as they are.
+      - **Once Apple grants the multicast entitlement:** set `FREE_REMOTE_MULTICAST = YES` in
+        `Config/Local.xcconfig` (this also signs with `App/FreeRemote/FreeRemote+Multicast.entitlements`),
+        then in the notes below delete the "Version 1.0" paragraph and replace it with the "With the multicast
+        entitlement" paragraph.
 
 ## Notes for the reviewer
 
@@ -32,17 +37,23 @@ VIDEO LINK: owner to add
 (The app also has a demo mode with a simulated TV, used to produce the screenshots. It is enabled by a
 developer launch argument, so it is not reachable from the installed app.)
 
-**Why the app uses Local Network access and the multicast entitlement**
+**Why the app uses Local Network access**
 
-- Local Network permission: the app discovers TVs (Bonjour `_airplay._tcp`, filtered to Samsung devices),
-  reads the TV's device information (`http://<tv>:8001/api/v2/`) and sends remote-control commands over an
-  encrypted WebSocket (`wss://<tv>:8002`). All traffic stays on the local network; the app only contacts
-  private (RFC 1918) or link-local addresses.
-- Multicast networking entitlement (`com.apple.developer.networking.multicast`):
-  - SSDP discovery: an `M-SEARCH` to the standard multicast group finds Samsung TVs that do not advertise over
-    Bonjour.
-  - Wake-on-LAN: when the TV is in deep standby and not answering, the app sends a "magic packet" UDP broadcast
-    on the local subnet to turn it on.
+The app discovers TVs (Bonjour `_airplay._tcp`, filtered to Samsung devices), reads the TV's device
+information (`http://<tv>:8001/api/v2/`) and sends remote-control commands over an encrypted WebSocket
+(`wss://<tv>:8002`). To turn a TV on, it sends a Wake-on-LAN "magic packet" (UDP) to the TV. All traffic
+stays on the local network; the app only contacts private (RFC 1918) or link-local addresses.
+
+Version 1.0: this build does not use the multicast networking entitlement. It discovers TVs over Bonjour
+only and sends the Wake-on-LAN packet directly to the TV's last known address.
+
+<!-- With the multicast entitlement (replace the "Version 1.0" paragraph above with this one):
+This build uses the multicast networking entitlement (`com.apple.developer.networking.multicast`) for:
+- SSDP discovery: an `M-SEARCH` to the standard multicast group finds Samsung TVs that do not advertise over
+  Bonjour.
+- Wake-on-LAN: when the TV is in deep standby and not answering, the app also broadcasts the "magic packet"
+  on the local subnet to turn it on.
+-->
 
 **Encryption / export compliance**
 

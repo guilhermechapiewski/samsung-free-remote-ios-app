@@ -250,7 +250,7 @@ private struct Harness {
     /// `powerFetchable`) instead of `FakePower`.
     init(known: [TVDeviceInfo] = [], selected: TVID? = nil, wifi: Bool = true,
          power: PowerOutcome? = .turnedOn, powerPlan: PowerAction? = nil, fetchable: [TVDeviceInfo] = [],
-         realPower: Bool = false, powerFetchable: [TVDeviceInfo] = []) {
+         realPower: Bool = false, powerFetchable: [TVDeviceInfo] = [], multicast: Bool = true) {
         store = FakeKnownTVStore(known.map(knownTV))
         self.wifi = WiFiSwitch(wifi)
         self.power = FakePower(power, plan: powerPlan)
@@ -266,7 +266,7 @@ private struct Harness {
             makeSession: { sessions.make($0, $1) },
             makePowerController: {
                 guard realPower else { return powerFake }
-                return PowerController(fetcher: powerFetcher, wake: { _, _ in }, interface: { nil }, clock: clock)
+                return PowerController(fetcher: powerFetcher, wake: { _, _, _ in }, interface: { nil }, clock: clock)
             },
             fetcher: fetcher,
             credentials: credentials,
@@ -274,7 +274,8 @@ private struct Harness {
             knownTVStore: store,
             wifiInterface: { [wifi = self.wifi] in wifi.isOn ? iface : nil },
             clock: clock,
-            userDefaults: defaults
+            userDefaults: defaults,
+            multicastEnabled: multicast
         )
         model = AppModel(env: env)
     }
@@ -608,6 +609,25 @@ private let tvC = info("uuid:c", host: "192.168.1.12", name: "Alpha", model: "QE
         #expect(h.power.calls.withLock { $0 } == [tvA.id])
         #expect(h.model.statusMessage
             == "Couldn't turn on the TV. Turn on “Power On with Mobile” in the TV's network settings, then try again.")
+    }
+
+    @Test func powerFailureWithoutMulticastSuggestsTheTVRemote() async {
+        let h = Harness(known: [tvA], selected: tvA.id, power: .failedToWake, multicast: false)
+        await h.appear()
+        await settle { h.sessions.last?.snapshot.connects == 1 }
+        h.model.togglePower()
+        await settle { !h.model.powerBusy }
+        #expect(h.model.statusMessage
+            == "Couldn't turn on the TV. If it has been off for a while, turn it on with its own remote. "
+            + "Also check that “Power On with Mobile” is on in the TV's network settings.")
+    }
+
+    @Test func liveBuildFlagMatchesEntitlementsDefault() {
+        // The test host is built without FREE_REMOTE_MULTICAST = YES unless a Local.xcconfig opts in;
+        // the flag must be readable either way, and absent/NO means no entitlement.
+        let raw = Bundle.main.object(forInfoDictionaryKey: "FRMulticastEnabled") as? String
+        #expect(raw == "YES" || raw == "NO")
+        #expect(AppEnvironment.buildHasMulticastEntitlement == (raw == "YES"))
     }
 
     @Test func powerIdentityChangedShowsIdentityStateAndEndsHold() async {

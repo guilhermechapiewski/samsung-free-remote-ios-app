@@ -3,6 +3,12 @@
 The App Store Connect copy for Free Remote for Samsung TV. Keep it in sync with what the app actually
 supports. Each field's text is the content under its heading (field limits in brackets).
 
+**Release stages.** Version 1.0 ships without Apple's multicast networking entitlement: TVs are discovered
+over Bonjour (AirPlay) and the app can send only a direct (unicast) wake packet, so turning on a TV that has
+been off for a while may not work. When the entitlement is granted and a build with
+`FREE_REMOTE_MULTICAST = YES` ships, apply the "With the multicast entitlement" changes at the end of this
+file.
+
 ## Name [30 characters]
 
 Free Remote for Samsung TV
@@ -41,7 +47,8 @@ REQUIREMENTS
 - Works with Samsung Smart TVs running Tizen, 2022 and newer. Many 2018–2021 models also work. Tested on 2022, 2024 and 2026 models.
 - Your iPhone and TV must be on the same Wi-Fi/local network. Guest or isolated networks that block devices from seeing each other will not work.
 - The first time you connect, choose "Allow" on the TV.
-- To turn the TV on from the app, enable "Power On with Mobile" (network standby) in the TV's settings.
+- To turn the TV on from the app, enable "Power On with Mobile" (network standby) in the TV's settings. If the TV has been off for a long time, it may need its own remote to turn on.
+- To find the TV automatically, keep AirPlay turned on in the TV's settings (it is on by default), or add the TV by its IP address.
 - Allow Local Network access on your iPhone when asked (Settings > Privacy & Security > Local Network).
 - Requires an iPhone with iOS 27 or later.
 
@@ -60,6 +67,9 @@ Shown in the description above and in the README; keep all three in sync.
   supported.
 - Choose "Allow" on the TV the first time the app connects.
 - To turn the TV on from the app: the TV's "Power On with Mobile" / network standby setting must be on.
+  Version 1.0: a TV that has been off for a long time may need its own remote to turn on.
+- Version 1.0: automatic discovery needs AirPlay on in the TV's settings (on by default); otherwise add the
+  TV by its IP address.
 - Local Network permission granted on the iPhone.
 - iPhone with iOS 27 or later.
 
@@ -84,3 +94,13 @@ Not affiliated with or endorsed by Samsung. Samsung and Tizen are trademarks of 
 
 The app name must not begin with "Samsung" (App Review trademark guidance); "Samsung TV" is used only to
 describe compatibility.
+
+## With the multicast entitlement (version 1.1 or later)
+
+Once a build with `FREE_REMOTE_MULTICAST = YES` is the one being submitted:
+
+- In the description's REQUIREMENTS and in "Requirements" above (and in the README), remove the two
+  "Version 1.0" caveats: the long-off power-on sentence and the AirPlay discovery line.
+- "What's New" text, for example: "Turns on your TV even after it has been off for a long time, and finds
+  more TVs automatically."
+- Update `AppStore/review-notes.md` as described there.

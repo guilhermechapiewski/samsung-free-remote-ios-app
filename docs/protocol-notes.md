@@ -54,7 +54,10 @@ of consecutive failures.
 State is read from the device-info `PowerState`:
 - on: send `KEY_POWER` (turn off), then confirm the state changed.
 - standby (or unknown while the TV answers): send `KEY_POWER` over the channel to wake it.
-- unreachable: send a Wake-on-LAN magic packet (broadcast, UDP) from the Wi-Fi interface.
+- unreachable: send a Wake-on-LAN magic packet (UDP port 9) from the Wi-Fi interface: unicast to the TV's
+  last known address and, with the multicast entitlement, also to the subnet and limited broadcast
+  addresses. iOS refuses broadcasts without that entitlement (EHOSTUNREACH); the unicast packet reaches the
+  TV only while its hardware address is still in the iPhone's or router's ARP cache.
 
 Key repeat for held keys is `RepeatStrategy`: `.pressRelease` or `.clickEvery(Duration)`; the default is
 repeated Click every 150 ms until measured otherwise (unverified).

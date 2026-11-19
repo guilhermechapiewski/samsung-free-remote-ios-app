@@ -21,18 +21,19 @@ public actor PowerController {
     static let pollInterval: Duration = .seconds(1)
 
     private let fetcher: any TVInfoFetching
-    private let wake: @Sendable (MACAddress, IPv4Interface) async -> Void
+    private let wake: @Sendable (MACAddress, IPv4Interface, String) async -> Void
     private let interface: @Sendable () -> IPv4Interface?
     private let clock: any Clock<Duration>
     private let wakeTimeout: Duration
     private let offConfirmTimeout: Duration
     private var inFlight = false
 
-    /// `fetcher` should use a short timeout (the app passes 1 s); `wake` sends the magic packet;
+    /// `fetcher` should use a short timeout (the app passes 1 s); `wake` sends the magic packet for the
+    /// MAC via the interface (the third argument is the TV's last known host, for a unicast packet);
     /// `interface` returns the current Wi-Fi interface, or nil when not on Wi-Fi.
     public init(
         fetcher: any TVInfoFetching,
-        wake: @escaping @Sendable (MACAddress, IPv4Interface) async -> Void,
+        wake: @escaping @Sendable (MACAddress, IPv4Interface, String) async -> Void,
         interface: @escaping @Sendable () -> IPv4Interface?,
         clock: any Clock<Duration> = ContinuousClock(),
         wakeTimeout: Duration = .seconds(20),
@@ -91,7 +92,7 @@ public actor PowerController {
     private func wakeOnLAN(_ tv: KnownTV) async -> PowerOutcome {
         guard let mac = tv.wifiMAC else { return .noMACKnown }
         guard let iface = interface() else { return .notOnWiFi }
-        await wake(mac, iface)
+        await wake(mac, iface, tv.lastHost)
         return await pollUntilOn(tv.lastHost) ? .turnedOn : .failedToWake
     }
 

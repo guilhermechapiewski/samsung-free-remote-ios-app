@@ -61,11 +61,14 @@ and reliably, including turning the TV on.
   **Account Holder** and approved by Apple. Until approval, the app must still
   work using Bonjour discovery and direct-wake-from-standby (see §6.4); the
   multicast features are enabled behind the entitlement and degrade gracefully.
-  **Owner decision: the first App Store release waits for this approval**, so
-  Wake-on-LAN power-on is a v1 requirement. The owner (Account Holder) files
-  the request at the very start of the project; the graceful fallback still
-  exists (development builds, or if Apple ever revokes it) but is not the
-  release path.
+  **Owner decision (revised 2026-11-19): ship version 1.0 without the
+  entitlement** because App Store review and the entitlement request both take
+  time. 1.0 uses Bonjour discovery, wake-from-standby over the control channel
+  and a unicast Wake-on-LAN packet to the TV's last known address (works while
+  the TV's MAC is still ARP-cached). A later release built with
+  `FREE_REMOTE_MULTICAST = YES` adds SSDP and broadcast Wake-on-LAN. The
+  owner (Account Holder) files the entitlement request now. (Superseded
+  decision: the first release was to wait for approval.)
 - Local Network privacy permission is required (`NSLocalNetworkUsageDescription`,
   `NSBonjourServices = [_airplay._tcp]`).
 - Public GitHub repo: no secrets in the repo, ever.
@@ -321,7 +324,8 @@ Network permissions are needed), and an explicit **Requirements** section:
 - iPhone only; iOS 27 only.
 - Remote layout B (classic), no changes.
 - App name: **Free Remote for Samsung TV**.
-- Release waits for multicast entitlement approval (owner files the request first).
+- ~~Release waits for multicast entitlement approval.~~ Revised 2026-11-19: ship 1.0 without it; add
+  multicast in a later release once Apple approves (see §3).
 - Scope runs through submission-ready; owner presses Submit.
 - License: MIT.
 - Must work on any user's network; nothing hardcoded to the owner's network.

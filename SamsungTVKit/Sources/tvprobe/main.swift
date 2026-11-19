@@ -10,7 +10,7 @@ usage:
   tvprobe hold <host> <KEY> <seconds>
   tvprobe text <host> <string>
   tvprobe listen <host>
-  tvprobe wake <mac>
+  tvprobe wake <mac> [host] [--no-broadcast]   (host: also send a unicast packet to it)
 """
 
 /// Hidden: saves and loads a dummy credential in a temp directory and prints the file and directory modes.
@@ -250,11 +250,19 @@ func listen(_ host: String) async {
     for await shown in session.keyboardEvents { out("keyboard: \(shown ? "shown" : "hidden")") }
 }
 
-func wake(_ macText: String) async {
-    guard let mac = MACAddress(macText) else { fail("invalid MAC", showUsage: true) }
+func wake(_ args: [String]) async {
+    let broadcast = !args.contains("--no-broadcast")
+    let positional = args.filter { $0 != "--no-broadcast" }
+    guard (1...2).contains(positional.count), let mac = MACAddress(positional[0]) else {
+        fail("invalid MAC", showUsage: true)
+    }
+    let host = positional.count == 2 ? positional[1] : nil
+    if let host, !LocalAddress.isAllowed(host) { fail("host must be a private IPv4 address", showUsage: true) }
+    guard host != nil || broadcast else { fail("--no-broadcast needs a host", showUsage: true) }
     guard let iface = firstPrivateInterface() else { fail("no up private IPv4 interface") }
-    out("sending magic packet via \(iface.name)")
-    await WakeOnLAN.send(to: mac, via: iface)
+    let targets = WakeOnLAN.targets(via: iface, host: host, broadcast: broadcast)
+    out("sending magic packet via \(iface.name) to \(targets.joined(separator: ", "))")
+    await WakeOnLAN.send(to: mac, via: iface, host: host, broadcast: broadcast)
 }
 
 // MARK: - Dispatch
@@ -273,6 +281,6 @@ case ("hold", 3):
     await hold(rest[0], rest[1], secs)
 case ("text", 2): await text(rest[0], rest[1])
 case ("listen", 1): await listen(rest[0])
-case ("wake", 1): await wake(rest[0])
+case ("wake", 1...3): await wake(rest)
 default: fail("bad arguments", showUsage: true)
 }

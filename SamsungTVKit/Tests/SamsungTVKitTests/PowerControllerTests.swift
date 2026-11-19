@@ -55,10 +55,13 @@ private final class FakeSender: PowerKeySending {
 }
 
 final class WakeRecorder: Sendable {
-    private let calls = Mutex<[(MACAddress, IPv4Interface)]>([])
+    private let calls = Mutex<[(MACAddress, IPv4Interface, String)]>([])
     var macs: [MACAddress] { calls.withLock { $0.map(\.0) } }
     var interfaces: [IPv4Interface] { calls.withLock { $0.map(\.1) } }
-    func record(_ mac: MACAddress, _ iface: IPv4Interface) { calls.withLock { $0.append((mac, iface)) } }
+    var hosts: [String] { calls.withLock { $0.map(\.2) } }
+    func record(_ mac: MACAddress, _ iface: IPv4Interface, _ host: String) {
+        calls.withLock { $0.append((mac, iface, host)) }
+    }
 }
 
 @Suite(.timeLimit(.minutes(1)))
@@ -70,7 +73,7 @@ struct PowerControllerTests {
         let wakes = wakes
         return PowerController(
             fetcher: fetcher,
-            wake: { mac, iface in wakes.record(mac, iface) },
+            wake: { mac, iface, host in wakes.record(mac, iface, host) },
             interface: { interface },
             clock: clock
         )
@@ -256,6 +259,7 @@ struct PowerControllerTests {
         #expect(await drive(task, polls: 3) == .turnedOn)
         #expect(wakes.macs == [mac])
         #expect(wakes.interfaces == [wifi])
+        #expect(wakes.hosts == [host])
         #expect(sender.sent.isEmpty)
         #expect(fetcher.fetchedHosts == Array(repeating: host, count: 4))
     }
