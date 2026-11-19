@@ -35,14 +35,25 @@ final class PinningDelegate: NSObject, URLSessionWebSocketDelegate, Sendable {
 
     /// True only when the socket actually opened on the endpoint that was requested (same scheme,
     /// host, port and path), so a redirected upgrade can never be trusted on another endpoint's pin.
+    /// URLSession reports an opened WebSocket task's request with an http(s) scheme, so `ws` is
+    /// treated as `http` and `wss` as `https` (never `wss` as `http`).
     static func openedURLMatches(requested: URL, opened: URL?) -> Bool {
         guard let opened,
-              let scheme = requested.scheme?.lowercased(), let host = requested.host()?.lowercased()
+              let scheme = requested.scheme.map(httpEquivalentScheme),
+              let host = requested.host()?.lowercased()
         else { return false }
-        return opened.scheme?.lowercased() == scheme
+        return opened.scheme.map(httpEquivalentScheme) == scheme
             && opened.host()?.lowercased() == host
             && opened.port == requested.port
             && opened.path() == requested.path()
+    }
+
+    private static func httpEquivalentScheme(_ scheme: String) -> String {
+        switch scheme.lowercased() {
+        case "ws": "http"
+        case "wss": "https"
+        case let other: other
+        }
     }
 
     /// Registers the policy, the requested URL and the waiter for the connection outcome. Must be
@@ -135,7 +146,10 @@ final class PinningDelegate: NSObject, URLSessionWebSocketDelegate, Sendable {
         // the requested one, is never trusted.
         let (pin, requested) = state.withLock { ($0.acceptedPin, $0.requestedURL) }
         guard let requested,
-              Self.openedURLMatches(requested: requested, opened: webSocketTask.currentRequest?.url)
+              Self.openedURLMatches(
+                  requested: requested,
+                  opened: webSocketTask.currentRequest?.url ?? webSocketTask.originalRequest?.url
+              )
         else {
             finish(.failure(.unreachable))
             webSocketTask.cancel(with: .goingAway, reason: nil)

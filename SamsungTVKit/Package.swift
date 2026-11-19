@@ -14,6 +14,11 @@ let package = Package(
             dependencies: ["SamsungTVKit"],
             resources: [.copy("Fixtures")]
         ),
+        .testTarget(
+            name: "SamsungTVKitIntegrationTests",
+            dependencies: ["SamsungTVKit"],
+            resources: [.copy("Fixtures")]
+        ),
     ],
     swiftLanguageModes: [.v6]
 )

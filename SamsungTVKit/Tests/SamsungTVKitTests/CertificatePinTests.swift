@@ -104,6 +104,23 @@ import Testing
         #expect(!PinningDelegate.openedURLMatches(requested: requested, opened: opened))
     }
 
+    /// URLSession reports the opened WebSocket task's request with an http(s) scheme.
+    @Test func httpsOpenedMatchesWSSRequested() {
+        let opened = URL(string: "https://192.168.1.20:8002/api/v2/channels/samsung.remote.control?name=x")!
+        #expect(PinningDelegate.openedURLMatches(requested: requested, opened: opened))
+    }
+
+    @Test func plainHTTPOpenedDoesNotMatchWSSRequested() {
+        let opened = URL(string: "http://192.168.1.20:8002/api/v2/channels/samsung.remote.control?name=x")!
+        #expect(!PinningDelegate.openedURLMatches(requested: requested, opened: opened))
+    }
+
+    @Test func httpOpenedMatchesWSRequested() {
+        let requested = URL(string: "ws://192.168.1.20:8001/x")!
+        #expect(PinningDelegate.openedURLMatches(requested: requested, opened: URL(string: "http://192.168.1.20:8001/x")!))
+        #expect(!PinningDelegate.openedURLMatches(requested: requested, opened: URL(string: "https://192.168.1.20:8001/x")!))
+    }
+
     @Test func missingOpenedURLDoesNotMatch() {
         #expect(!PinningDelegate.openedURLMatches(requested: requested, opened: nil))
     }
