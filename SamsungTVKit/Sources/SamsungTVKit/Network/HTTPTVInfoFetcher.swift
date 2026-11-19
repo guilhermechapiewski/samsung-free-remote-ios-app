@@ -25,6 +25,8 @@ public struct HTTPTVInfoFetcher: TVInfoFetching {
         guard LocalAddress.isAllowed(host, allowLoopback: allowLoopback),
               let url = URL(string: "http://\(host):8001/api/v2/") else { throw .notLocalAddress }
         var request = URLRequest(url: url)
+        // Power decisions depend on the TV's current state, never a cached answer.
+        request.cachePolicy = .reloadIgnoringLocalCacheData
         let (seconds, attoseconds) = timeout.components
         request.timeoutInterval = Double(seconds) + Double(attoseconds) / 1e18
 

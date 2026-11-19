@@ -11,13 +11,15 @@ private enum StubResult: Sendable {
 
 private final class StubProtocol: URLProtocol, @unchecked Sendable {
     // Safety: all shared state lives in Mutex-protected statics; instances only touch their own URLProtocol state.
-    private static let state = Mutex<(result: StubResult, requests: [URL], timeouts: [TimeInterval])>((.failure(.unknown), [], []))
+    private static let state = Mutex<(result: StubResult, requests: [URL], timeouts: [TimeInterval],
+                                      cachePolicies: [URLRequest.CachePolicy])>((.failure(.unknown), [], [], []))
 
     static func configure(_ result: StubResult) {
-        state.withLock { $0 = (result, [], []) }
+        state.withLock { $0 = (result, [], [], []) }
     }
     static var timeouts: [TimeInterval] { state.withLock { $0.timeouts } }
     static var requests: [URL] { state.withLock { $0.requests } }
+    static var cachePolicies: [URLRequest.CachePolicy] { state.withLock { $0.cachePolicies } }
 
     static func makeSession() -> URLSession {
         let config = URLSessionConfiguration.ephemeral
@@ -34,6 +36,7 @@ private final class StubProtocol: URLProtocol, @unchecked Sendable {
         let result = Self.state.withLock { s -> StubResult in
             s.requests.append(url)
             s.timeouts.append(request.timeoutInterval)
+            s.cachePolicies.append(request.cachePolicy)
             return s.result
         }
         switch result {
@@ -124,5 +127,12 @@ struct HTTPTVInfoFetcherTests {
         let defaults = HTTPTVInfoFetcher(session: StubProtocol.makeSession())
         _ = try await defaults.fetchInfo(host: "10.0.0.5")
         #expect(StubProtocol.timeouts[0] == 2.0)
+    }
+
+    @Test func requestIgnoresLocalCache() async throws {
+        // A cached "on" answer would make Power turn off a TV that is already off.
+        StubProtocol.configure(.response(status: 200, body: try fixture("info-on")))
+        _ = try await makeFetcher().fetchInfo(host: "10.0.0.5")
+        #expect(StubProtocol.cachePolicies == [.reloadIgnoringLocalCacheData])
     }
 }
