@@ -113,6 +113,24 @@ struct PowerControllerTests {
         #expect(wakes.macs.isEmpty)
     }
 
+    @Test func reportsThePlanBeforeActing() async {
+        let plans = Mutex<[PowerAction]>([])
+        let sender = FakeSender()
+        let off = controller(FakeFetcher([.success(.on), .success(.standby)]))
+        let task = Task {
+            await off.togglePower(tv: knownTV(), sender: sender) { action in
+                // Reported before the power key goes out.
+                #expect(sender.sent.isEmpty)
+                plans.withLock { $0.append(action) }
+            }
+        }
+        #expect(await drive(task, polls: 1) == .turnedOff)
+        let on = controller(FakeFetcher([.failure(.unreachable), .success(.on)]))
+        let wake = Task { await on.togglePower(tv: knownTV(), sender: sender) { a in plans.withLock { $0.append(a) } } }
+        #expect(await drive(wake, polls: 1) == .turnedOn)
+        #expect(plans.withLock { $0 } == [.turnOff, .wakeOnLAN])
+    }
+
     @Test func turnOffPollsUntilNotOn() async {
         // Still on for two polls, then unreachable (counts as off).
         let fetcher = FakeFetcher([.success(.on), .success(.on), .success(.on), .failure(.unreachable)])

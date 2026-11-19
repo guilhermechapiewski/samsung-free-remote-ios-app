@@ -48,12 +48,18 @@ public actor PowerController {
 
     /// Toggles the TV's power. Returns nil (ignored) while a previous toggle is still in flight,
     /// including while a turn-off is being confirmed, so a stale `.on` cannot trigger a second key.
-    public func togglePower(tv: KnownTV, sender: any PowerKeySending) async -> PowerOutcome? {
+    /// `onPlan` is told what the toggle will do (e.g. to show "Turning off…") once the TV's state is
+    /// known, before acting on it.
+    public func togglePower(
+        tv: KnownTV, sender: any PowerKeySending, onPlan: @Sendable (PowerAction) async -> Void = { _ in }
+    ) async -> PowerOutcome? {
         guard !inFlight else { return nil }
         inFlight = true
         defer { inFlight = false }
 
-        switch PowerPlanner.action(for: await fetchPower(tv.lastHost)) {
+        let action = PowerPlanner.action(for: await fetchPower(tv.lastHost))
+        await onPlan(action)
+        switch action {
         case .turnOff:
             do {
                 try await sender.sendEnsuringConnection(.power, timeout: Self.keyTimeout)
