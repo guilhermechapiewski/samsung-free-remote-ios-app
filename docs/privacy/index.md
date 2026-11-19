@@ -41,8 +41,10 @@ Account; the developer cannot see it. If iCloud is off, names are kept on the de
 
 ## Deleting your data
 
-Use "Forget this TV" in the app to remove a TV, its pairing and its name. Deleting the app removes everything
-it stored on the device. You can also remove the pairing on the TV in its Device Connection Manager settings.
+Use "Forget…" in the TV picker to remove a TV, its pairing and its name. Do this before deleting the app:
+deleting the app removes the list of TVs and the TV you used last, but iOS may keep the pairing data in the
+Keychain after the app is deleted, and the names you gave TVs remain in your iCloud key-value storage. You can
+also remove the pairing on the TV in its Device Connection Manager settings.
 
 ## Children
 

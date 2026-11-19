@@ -41,3 +41,4 @@ jobs:
         run: >
           xcodebuild test -project FreeRemote.xcodeproj -scheme FreeRemote
           -destination "id=$SIM_UDID"
+          -parallel-testing-enabled NO

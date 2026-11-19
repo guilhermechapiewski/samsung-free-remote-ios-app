@@ -17,6 +17,8 @@ names or TV names. In public notes, refer to TVs only by model year and series.
 ## Discovery
 
 - [ ] First launch shows the Local Network permission prompt; after allowing it, all TVs that are on appear.
+- [ ] **Slow answer to the prompt:** on first launch, wait 10 s before answering the Local Network prompt, then
+      Allow → TVs appear without a relaunch.
 - [ ] A TV that does not answer SSDP (find via `tvprobe`) is still found (Bonjour or the known-TV probe).
 - [ ] A TV in standby that still answers on the network is found and shown as Asleep.
 - [ ] "Scan again" refreshes the list; TVs that are on are listed first.
@@ -59,6 +61,8 @@ a haptic tap:
 ## Power
 
 - [ ] **Power off:** with the TV on, Power shows "Turning off…" and the TV turns off; it never turns a TV on.
+- [ ] After turning off with the app, confirm the TV shows Asleep/Off in the picker (not On) — some TVs keep
+      the WebSocket open in standby — and the status line says the TV is off (never "Connecting…").
 - [ ] **Power on from standby:** within a few minutes of turning it off, Power turns the TV on.
 - [ ] **Power on from deep sleep:** after the TV has been off for 30+ minutes (no longer answering on the
       network), Power sends Wake-on-LAN and the TV turns on; the app reconnects.
