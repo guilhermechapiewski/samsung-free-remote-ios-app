@@ -13,6 +13,25 @@ usage:
   tvprobe wake <mac>
 """
 
+/// Hidden: saves and loads a dummy credential in a temp directory and prints the file and directory modes.
+func credstoreSelfTest() {
+    let dir = FileManager.default.temporaryDirectory.appendingPathComponent("tvprobe-selftest-\(UUID().uuidString)")
+    let file = dir.appendingPathComponent("credentials.json")
+    let store = FileCredentialStore(url: file)
+    let id = TVID(rawValue: "selftest")
+    let pin = try! JSONDecoder().decode(CertificatePin.self, from: Data(#"{"sha256":"AAEC"}"#.utf8))
+    let creds = TVCredentials(token: "dummy", pin: pin)
+    do { try store.save(creds, for: id) } catch { fail("selftest save failed: \(error)") }
+    guard store.load(id) == creds else { fail("selftest load mismatch") }
+    func mode(_ u: URL) -> String {
+        let m = (try? FileManager.default.attributesOfItem(atPath: u.path)[.posixPermissions] as? Int) ?? 0
+        return String(m & 0o777, radix: 8)
+    }
+    let leftovers = (try? FileManager.default.contentsOfDirectory(atPath: dir.path))?.count ?? -1
+    print("file mode: \(mode(file))\ndir mode: \(mode(dir))\nentries in dir: \(leftovers)")
+    try? FileManager.default.removeItem(at: dir)
+}
+
 func fail(_ message: String, showUsage: Bool = false) -> Never {
     FileHandle.standardError.write(Data((message + (showUsage ? "\n" + usage : "") + "\n").utf8))
     exit(1)
@@ -26,9 +45,10 @@ final class FileCredentialStore: CredentialStore {
     private let lock = NSLock()
     private let url: URL
 
-    init() {
+    init(url: URL? = nil) {
+        if let url { self.url = url; return }
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        url = base.appendingPathComponent("tvprobe/credentials.json")
+        self.url = base.appendingPathComponent("tvprobe/credentials.json")
     }
 
     private func readAll() -> [String: TVCredentials] {
@@ -49,6 +69,7 @@ final class FileCredentialStore: CredentialStore {
         let tmp = dir.appendingPathComponent(".credentials.\(UUID().uuidString).tmp").path
         let fd = open(tmp, O_WRONLY | O_CREAT | O_EXCL, 0o600)
         guard fd >= 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
+        var open = true
         do {
             try data.withUnsafeBytes { buf in
                 var offset = 0
@@ -59,10 +80,11 @@ final class FileCredentialStore: CredentialStore {
                 }
             }
             guard fsync(fd) == 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
-            close(fd)
+            open = false
+            guard close(fd) == 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
             guard rename(tmp, url.path) == 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
         } catch {
-            close(fd)
+            if open { close(fd) }
             unlink(tmp)
             throw error
         }
@@ -187,6 +209,7 @@ func hold(_ host: String, _ keyName: String, _ seconds: Double) async {
     let k = parseKey(keyName)
     let session = await makeSession(host: host)
     await waitConnected(session)
+    guard case .clickEvery(let interval) = RepeatStrategy.default else { fail("default strategy is not clickEvery") }
     var pressed = false
     do {
         out("press/release for \(seconds)s")
@@ -196,7 +219,6 @@ func hold(_ host: String, _ keyName: String, _ seconds: Double) async {
         try await session.send(k, .release)
         pressed = false
         try await Task.sleep(for: .seconds(1))
-        guard case .clickEvery(let interval) = RepeatStrategy.default else { fail("default strategy is not clickEvery") }
         out("repeated click every \(interval) for \(seconds)s")
         let end = ContinuousClock.now + .seconds(seconds)
         while ContinuousClock.now < end {
@@ -242,6 +264,7 @@ guard let command = args.first else { fail("missing command", showUsage: true) }
 let rest = Array(args.dropFirst())
 
 switch (command, rest.count) {
+case ("_selftest-credstore", 0): credstoreSelfTest()
 case ("discover", 0): await discover()
 case ("info", 1): await info(rest[0])
 case ("key", 2), ("key", 3): await key(rest[0], rest[1], rest.count == 3 ? rest[2] : "click")
