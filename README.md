@@ -21,7 +21,7 @@ More screenshots: [`AppStore/screenshots/`](AppStore/screenshots/).
 
 ## Requirements
 
-- Works with Samsung Smart TVs running Tizen (2016 and newer). Tested on 2022, 2024 and 2026 models.
+- Works with Samsung Smart TVs running Tizen, 2022 and newer. Many 2018–2021 models also work. Tested on 2022, 2024 and 2026 models.
 - iPhone and TV on the same Wi-Fi/local network. Guest or isolated (client-isolation) networks are not
   supported.
 - Choose "Allow" on the TV the first time the app connects.

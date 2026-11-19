@@ -51,11 +51,11 @@ public struct TVDeviceInfo: Equatable, Sendable {
         let device = response.device
         guard device.type == "Samsung SmartTV", device.OS == "Tizen" else { throw .notSamsungTizen }
 
+        // Absent: older TVs omit the field and only answer while on.
         let power: TVPowerState
         switch device.PowerState {
-        case "on": power = .on
+        case "on", nil: power = .on
         case "", "standby": power = .standby
-        case nil: power = .unknown("")
         case let other?: power = .unknown(other)
         }
 

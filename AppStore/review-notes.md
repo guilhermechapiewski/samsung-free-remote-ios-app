@@ -14,8 +14,9 @@ Paste the "Notes for the reviewer" section into App Store Connect > App Review I
 
 ## Notes for the reviewer
 
-Free Remote for Samsung TV is a free, open-source remote control for Samsung Smart TVs (Tizen, 2016 and
-newer). It finds TVs on the local Wi-Fi network and sends the same commands as the TV's physical remote:
+Free Remote for Samsung TV is a free, open-source remote control for Samsung Smart TVs.
+Works with Samsung Smart TVs running Tizen, 2022 and newer. Many 2018–2021 models also work. It finds TVs on
+the local Wi-Fi network and sends the same commands as the TV's physical remote:
 power, volume, mute, channel, arrows/OK, Back, Home, Source and HDMI inputs, Play/Pause, number keys and text
 entry. There is no account, sign-in, in-app purchase, advertising or analytics.
 

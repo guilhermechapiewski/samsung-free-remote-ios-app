@@ -38,7 +38,7 @@ FREE AND OPEN SOURCE
 Free Remote is free, with no in-app purchases. Its source code is published on GitHub under the MIT license.
 
 REQUIREMENTS
-- Works with Samsung Smart TVs running Tizen (2016 and newer). Tested on 2022, 2024 and 2026 models.
+- Works with Samsung Smart TVs running Tizen, 2022 and newer. Many 2018–2021 models also work. Tested on 2022, 2024 and 2026 models.
 - Your iPhone and TV must be on the same Wi-Fi/local network. Guest or isolated networks that block devices from seeing each other will not work.
 - The first time you connect, choose "Allow" on the TV.
 - To turn the TV on from the app, enable "Power On with Mobile" (network standby) in the TV's settings.
@@ -55,7 +55,7 @@ remote,tv,smarttv,tizen,controller,wifi,television,volume,channel,hdmi,input,pow
 
 Shown in the description above and in the README; keep all three in sync.
 
-- Works with Samsung Smart TVs running Tizen (2016 and newer). Tested on 2022, 2024 and 2026 models.
+- Works with Samsung Smart TVs running Tizen, 2022 and newer. Many 2018–2021 models also work. Tested on 2022, 2024 and 2026 models.
 - iPhone and TV on the same Wi-Fi/local network; guest or isolated (client-isolation) networks are not
   supported.
 - Choose "Allow" on the TV the first time the app connects.

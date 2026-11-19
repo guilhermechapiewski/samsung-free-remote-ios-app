@@ -24,10 +24,23 @@ private func fixture(_ name: String) throws -> Data {
     #expect(try TVDeviceInfo.decode(fixture("info-asleep"), host: "10.0.0.5").powerState == .standby)
 }
 
-@Test func absentPowerStateIsUnknown() throws {
+@Test func absentPowerStateIsOn() throws {
+    // Older TVs omit PowerState entirely, and only answer while on.
     var json = try #require(String(data: fixture("info-on"), encoding: .utf8))
     json = json.replacingOccurrences(of: "\"PowerState\":\"on\",", with: "")
-    #expect(try TVDeviceInfo.decode(Data(json.utf8), host: "10.0.0.5").powerState == .unknown(""))
+    #expect(!json.contains("PowerState"))
+    #expect(try TVDeviceInfo.decode(Data(json.utf8), host: "10.0.0.5").powerState == .on)
+}
+
+@Test func explicitStandbyAndOtherPowerStates() throws {
+    let json = try #require(String(data: fixture("info-on"), encoding: .utf8))
+    func decode(_ value: String) throws -> TVPowerState {
+        let edited = json.replacingOccurrences(of: "\"PowerState\":\"on\"", with: "\"PowerState\":\"\(value)\"")
+        return try TVDeviceInfo.decode(Data(edited.utf8), host: "10.0.0.5").powerState
+    }
+    #expect(try decode("") == .standby)
+    #expect(try decode("standby") == .standby)
+    #expect(try decode("dimmed") == .unknown("dimmed"))
 }
 
 @Test func rejectsNonTizen() {

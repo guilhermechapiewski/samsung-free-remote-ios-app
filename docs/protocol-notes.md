@@ -17,7 +17,7 @@ confirmed on real hardware; see the checklist at the end.
 ## Device info
 
 Fields used: device id (stable TV identity), name, model name and code, Wi-Fi MAC, network type,
-`PowerState` (absent or `on` means on, `standby` means standby, anything else is kept as unknown) and
+`PowerState` (absent or `on` means on, empty or `standby` means standby, anything else is kept as unknown) and
 token-auth support.
 
 ## Messages
