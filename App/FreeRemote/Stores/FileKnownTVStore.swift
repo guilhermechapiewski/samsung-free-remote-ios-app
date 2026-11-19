@@ -3,7 +3,7 @@ import os
 import SamsungTVKit
 
 /// Persists the `KnownTVRegistry` as JSON. A missing or unreadable file yields an empty registry.
-struct FileKnownTVStore {
+struct FileKnownTVStore: Sendable {
     static var defaultURL: URL {
         URL.applicationSupportDirectory.appending(path: "known-tvs.json")
     }
