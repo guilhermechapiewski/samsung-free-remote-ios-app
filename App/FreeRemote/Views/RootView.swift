@@ -23,6 +23,28 @@ struct RootView: View {
     @Environment(AppModel.self) private var model
     @State private var sheet: Sheet?
     @State private var forgetting: TVID?
+    /// The TV asked for text while another sheet was open; show text entry once that closes.
+    @State private var textQueued = false
+
+    /// What to do when the TV's keyboard request changes while `current` is showing.
+    static func sheetUpdate(keyboardRequested: Bool, current: Sheet?, queued: Bool)
+        -> (sheet: Sheet?, queued: Bool) {
+        if keyboardRequested {
+            switch current {
+            case nil: return (.text, false)
+            case .text: return (.text, false)
+            default: return (current, true)
+            }
+        }
+        return (current == .text ? nil : current, false)
+    }
+
+    /// What to do when the sheet changes to `current`.
+    static func queuedTextAfterSheetChange(keyboardRequested: Bool, current: Sheet?, queued: Bool)
+        -> (sheet: Sheet?, queued: Bool) {
+        if queued, keyboardRequested, current == nil { return (.text, false) }
+        return (current, current == .text ? false : queued)
+    }
 
     var body: some View {
         Group {
@@ -54,13 +76,15 @@ struct RootView: View {
         .onChange(of: sheet) { old, new in
             // Closing text entry (Done or a swipe) tells the TV, if it is still asking for text.
             if old == .text, new != .text, model.keyboardRequested { model.endText() }
+            let next = Self.queuedTextAfterSheetChange(keyboardRequested: model.keyboardRequested, current: new,
+                                                       queued: textQueued)
+            textQueued = next.queued
+            if next.sheet != new { sheet = next.sheet }
         }
         .onChange(of: model.keyboardRequested, initial: true) { _, requested in
-            if requested {
-                sheet = .text
-            } else if sheet == .text {
-                sheet = nil
-            }
+            let next = Self.sheetUpdate(keyboardRequested: requested, current: sheet, queued: textQueued)
+            textQueued = next.queued
+            if next.sheet != sheet { sheet = next.sheet }
         }
     }
 

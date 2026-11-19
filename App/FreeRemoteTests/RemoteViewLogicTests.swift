@@ -118,5 +118,28 @@ import SamsungTVKit
         #expect(log.lastKey == "KEY_5")
         #expect(log.count == 1)
     }
-}
 
+    @Test func demoScenarioParsingIsExplicit() {
+        #expect(DemoEnvironment.scenario(for: ["-demo"]) == .remote)
+        #expect(DemoEnvironment.scenario(for: ["-demo", "-demo-empty"]) == .empty)
+        #expect(DemoEnvironment.scenario(for: ["-demo", "-demo-choose"]) == .chooseTV)
+        #expect(DemoEnvironment.scenario(for: ["-demo", "-demo-pairing"]) == .pairing)
+        #expect(DemoEnvironment.scenario(for: ["-demo", "-demo-keyboard"]) == .keyboard)
+    }
+
+    @Test func textRequestDuringAnotherSheetIsQueued() {
+        let rename = RootView.Sheet.rename(TVID(rawValue: "x"))
+        // Free screen: present at once.
+        #expect(RootView.sheetUpdate(keyboardRequested: true, current: nil, queued: false) == (.text, false))
+        // Another sheet open: keep it, queue the text sheet.
+        let busy = RootView.sheetUpdate(keyboardRequested: true, current: rename, queued: false)
+        #expect(busy.sheet == rename && busy.queued)
+        // Once it closes, the text sheet appears.
+        #expect(RootView.queuedTextAfterSheetChange(keyboardRequested: true, current: nil, queued: true)
+            == (.text, false))
+        // The TV gave up meanwhile: nothing is shown and the queue is cleared.
+        let gone = RootView.sheetUpdate(keyboardRequested: false, current: rename, queued: true)
+        #expect(gone.sheet == rename && !gone.queued)
+        #expect(RootView.queuedTextAfterSheetChange(keyboardRequested: false, current: nil, queued: false).sheet == nil)
+    }
+}

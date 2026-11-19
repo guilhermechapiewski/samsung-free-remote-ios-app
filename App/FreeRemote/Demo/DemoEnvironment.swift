@@ -20,13 +20,22 @@ enum DemoEnvironment {
         case chooseTV = "-demo-choose"
         /// The living room TV is waiting for Allow on the TV.
         case pairing = "-demo-pairing"
+        /// Connected to the living room TV, which asks for text shortly after connecting.
+        case keyboard = "-demo-keyboard"
     }
 
     /// The scenario named by the launch arguments, or nil when demo mode was not requested.
     static var requestedScenario: Scenario? {
         let arguments = ProcessInfo.processInfo.arguments
         guard arguments.contains(launchArgument) else { return nil }
-        return Scenario.allCases.last { arguments.contains($0.rawValue) }
+        return scenario(for: arguments)
+    }
+
+    /// The scenario for `arguments`: the first of the specific scenarios below that is named, else `.remote`.
+    /// Does not depend on the order of `Scenario`'s cases.
+    static func scenario(for arguments: [String]) -> Scenario {
+        let specific: [Scenario] = [.empty, .chooseTV, .pairing, .keyboard]
+        return specific.first { arguments.contains($0.rawValue) } ?? .remote
     }
 
     static let livingRoom = TVID(rawValue: "demo:living-room")
@@ -51,7 +60,7 @@ enum DemoEnvironment {
         // A fresh, demo-only defaults domain that starts with the living room TV selected.
         let defaults = UserDefaults(suiteName: defaultsSuite) ?? .standard
         defaults.removePersistentDomain(forName: defaultsSuite)
-        if scenario == .remote || scenario == .pairing {
+        if [.remote, .pairing, .keyboard].contains(scenario) {
             defaults.set(livingRoom.rawValue, forKey: AppModel.selectedTVKey)
         }
         let connectsTo: SessionState = scenario == .pairing ? .awaitingApproval : .connected
@@ -65,7 +74,7 @@ enum DemoEnvironment {
                     continuation.finish()
                 }
             },
-            makeSession: { _, _ in DemoSession(connectsTo: connectsTo, keyLog: keyLog) },
+            makeSession: { _, _ in DemoSession(connectsTo: connectsTo, asksForText: scenario == .keyboard, keyLog: keyLog) },
             makePowerController: { DemoPower() },
             fetcher: fetcher,
             credentials: DemoCredentials(),
@@ -92,10 +101,16 @@ final class DemoKeyLog {
     private(set) var lastKey: String?
     /// How many keys were sent.
     private(set) var count = 0
+    /// The last text sent to the TV's keyboard.
+    private(set) var lastText: String?
 
     func record(_ key: RemoteKey) {
         lastKey = key.rawValue
         count += 1
+    }
+
+    func recordText(_ text: String) {
+        lastText = text
     }
 }
 
@@ -107,10 +122,12 @@ private final class DemoSession: RemoteSessionProtocol {
     private let keyboardContinuation: AsyncStream<Bool>.Continuation
     private let state = Mutex<SessionState>(.idle)
     private let connectsTo: SessionState
+    private let asksForText: Bool
     private let keyLog: DemoKeyLog?
 
-    init(connectsTo: SessionState, keyLog: DemoKeyLog?) {
+    init(connectsTo: SessionState, asksForText: Bool, keyLog: DemoKeyLog?) {
         self.connectsTo = connectsTo
+        self.asksForText = asksForText
         self.keyLog = keyLog
         (states, stateContinuation) = AsyncStream.makeStream()
         (keyboardEvents, keyboardContinuation) = AsyncStream.makeStream()
@@ -121,6 +138,14 @@ private final class DemoSession: RemoteSessionProtocol {
     func connect() async {
         state.withLock { $0 = connectsTo }
         stateContinuation.yield(connectsTo)
+        if asksForText {
+            // The TV shows its keyboard a moment after the remote appears.
+            let keyboard = keyboardContinuation
+            Task {
+                try? await Task.sleep(for: .milliseconds(800))
+                keyboard.yield(true)
+            }
+        }
     }
 
     func disconnect() async {
@@ -134,7 +159,9 @@ private final class DemoSession: RemoteSessionProtocol {
         guard action != .release, let keyLog else { return }
         await keyLog.record(key)
     }
-    func sendText(_ s: String) async throws(SessionError) {}
+    func sendText(_ s: String) async throws(SessionError) {
+        await keyLog?.recordText(s)
+    }
     func sendTextEnd() async throws(SessionError) {}
     func sendEnsuringConnection(_ key: RemoteKey, timeout: Duration) async throws(SessionError) {}
 }
@@ -172,18 +199,25 @@ private final class DemoKnownTVStore: KnownTVPersisting {
     func save(_ r: KnownTVRegistry) throws { registry.withLock { $0 = r } }
 }
 
-/// An invisible element (identifier "demo-last-key") exposing the demo key log to UI tests: its label is the
-/// last key's raw value and its value the number of keys sent.
+/// Invisible elements exposing the demo log to UI tests: "demo-last-key" (label: the last key's raw value, value:
+/// the number of keys sent) and "demo-last-text" (label: the last text sent).
 struct DemoKeyLogView: View {
     let log: DemoKeyLog
 
     var body: some View {
+        VStack(spacing: 0) {
+            marker.accessibilityLabel(log.lastKey ?? "none")
+                .accessibilityValue(String(log.count))
+                .accessibilityIdentifier("demo-last-key")
+            marker.accessibilityLabel(log.lastText ?? "none")
+                .accessibilityIdentifier("demo-last-text")
+        }
+        .allowsHitTesting(false)
+    }
+
+    private var marker: some View {
         Color.clear
             .frame(width: 1, height: 1)
-            .allowsHitTesting(false)
             .accessibilityElement()
-            .accessibilityLabel(log.lastKey ?? "none")
-            .accessibilityValue(String(log.count))
-            .accessibilityIdentifier("demo-last-key")
     }
 }

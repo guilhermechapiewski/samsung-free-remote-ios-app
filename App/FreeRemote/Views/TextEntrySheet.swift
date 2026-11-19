@@ -19,6 +19,7 @@ struct TextEntrySheet: View {
                         .onSubmit(send)
                     Button("Send", action: send)
                         .disabled(text.isEmpty)
+                        .accessibilityIdentifier("send-text")
                 } footer: {
                     Text("Your TV is asking for text.")
                 }

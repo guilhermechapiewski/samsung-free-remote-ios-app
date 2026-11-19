@@ -801,6 +801,20 @@ private let tvC = info("uuid:c", host: "192.168.1.12", name: "Alpha", model: "QE
         #expect(!h.model.keyboardRequested)
     }
 
+    @Test func endTextClearsKeyboardRequestSoALaterRequestPresentsAgain() async throws {
+        let h = Harness(known: [tvA], selected: tvA.id)
+        await h.appear()
+        await h.connectCurrent()
+        let session = try #require(h.sessions.last)
+        session.keyboardContinuation.yield(true)
+        await settle { h.model.keyboardRequested }
+        h.model.endText()
+        #expect(!h.model.keyboardRequested)
+        session.keyboardContinuation.yield(true)
+        await settle { h.model.keyboardRequested }
+        #expect(h.model.keyboardRequested)
+    }
+
     @Test func turningOffSilencesUnreachableAndShowsAsleep() async throws {
         let h = Harness(known: [tvA], selected: tvA.id, power: .turnedOff)
         await h.appear()

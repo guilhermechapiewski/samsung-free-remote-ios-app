@@ -134,4 +134,23 @@ final class FlowUITests: XCTestCase {
         app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Living Room'")).firstMatch.tap()
         waitForRemote(app)
     }
+
+    @MainActor
+    func testTextEntrySheetAppearsAndDismisses() {
+        let app = launch(["-demo", "-demo-keyboard"])
+        let field = app.textFields["Text for the TV"]
+        XCTAssertTrue(field.waitForExistence(timeout: 15))
+        field.typeText("hello")
+        app.buttons["send-text"].tap()
+        let lastText = app.descendants(matching: .any)["demo-last-text"]
+        let sent = NSPredicate(format: "label == 'hello'")
+        wait(for: [expectation(for: sent, evaluatedWith: lastText)], timeout: 5)
+
+        app.buttons["Done"].tap()
+        XCTAssertTrue(app.buttons["Volume up"].waitForExistence(timeout: 5))
+        XCTAssertFalse(field.exists)
+        // It does not reappear on its own.
+        Thread.sleep(forTimeInterval: 2)
+        XCTAssertFalse(field.exists)
+    }
 }

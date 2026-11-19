@@ -353,6 +353,8 @@ final class AppModel {
 
     /// Tells the TV text entry is done.
     func endText() {
+        // The TV is no longer asked for text, so a later request from it shows the sheet again.
+        keyboardRequested = false
         enqueueIfConnected { session throws(SessionError) in try await session.sendTextEnd() }
     }
 
