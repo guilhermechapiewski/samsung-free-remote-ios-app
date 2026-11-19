@@ -51,6 +51,12 @@ public actor RemoteSession {
     private var approvalTimer: Task<Void, Never>?
     private var transport: (any WebSocketTransport)?
 
+    /// Callers of `sendEnsuringConnection` suspended until the state settles; resumed on every
+    /// state change, on every stop, and when their timeout fires.
+    private var stateWaiters: [Int: CheckedContinuation<Void, Never>] = [:]
+    private var expiredWaiters: Set<Int> = []
+    private var nextWaiterID = 0
+
     public init(
         id: TVID,
         host: String,
@@ -97,6 +103,15 @@ public actor RemoteSession {
 
     public func send(_ key: RemoteKey, _ action: KeyAction = .click) async throws(SessionError) {
         try await write(RemoteProtocol.key(key, action))
+    }
+
+    /// Sends `key`, first connecting if the session is idle or failed and waiting (up to `timeout`)
+    /// for `.connected`. Throws the session's failure, or `.unreachable` on timeout or disconnect.
+    public func sendEnsuringConnection(_ key: RemoteKey, timeout: Duration) async throws(SessionError) {
+        if currentState != .connected {
+            try await waitUntilConnected(timeout: timeout)
+        }
+        try await send(key)
     }
 
     public func sendText(_ s: String) async throws(SessionError) {
@@ -228,6 +243,8 @@ public actor RemoteSession {
         let transport = self.transport
         self.transport = nil
         setState(final)
+        // Wake waiters even when the state did not change (e.g. failed again with the same error).
+        resumeStateWaiters()
         await transport?.close()
     }
 
@@ -240,6 +257,58 @@ public actor RemoteSession {
             await transport.close()
             throw .unreachable
         }
+    }
+
+    // MARK: - Waiting for a connection
+
+    private func waitUntilConnected(timeout: Duration) async throws(SessionError) {
+        // A failure or idle state from before this call is stale until the new attempt settles.
+        var stale = false
+        switch currentState {
+        case .idle, .failed:
+            await connect()
+            stale = true
+        default:
+            break
+        }
+
+        nextWaiterID += 1
+        let id = nextWaiterID
+        let clock = clock
+        let timer = Task { [weak self] in
+            do {
+                try await clock.sleep(for: timeout)
+            } catch {
+                return
+            }
+            await self?.expireWaiter(id)
+        }
+        defer {
+            timer.cancel()
+            expiredWaiters.remove(id)
+        }
+
+        while true {
+            if currentState == .connected { return }
+            if !stale {
+                if case .failed(let error) = currentState { throw error }
+                if currentState == .idle { throw .unreachable }
+            }
+            if expiredWaiters.contains(id) { throw .unreachable }
+            await withCheckedContinuation { stateWaiters[id] = $0 }
+            stale = false
+        }
+    }
+
+    private func expireWaiter(_ id: Int) {
+        expiredWaiters.insert(id)
+        stateWaiters.removeValue(forKey: id)?.resume()
+    }
+
+    private func resumeStateWaiters() {
+        let waiters = stateWaiters
+        stateWaiters.removeAll()
+        for waiter in waiters.values { waiter.resume() }
     }
 
     // MARK: - Approval timer
@@ -275,6 +344,7 @@ public actor RemoteSession {
         guard new != currentState else { return }
         currentState = new
         stateContinuation.yield(new)
+        resumeStateWaiters()
         if new != .connected { setKeyboard(false) }
     }
 

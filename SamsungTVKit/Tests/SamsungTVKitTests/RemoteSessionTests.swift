@@ -320,4 +320,72 @@ struct RemoteSessionTests {
         transport.push(#"{"event":"ms.remote.imeEnd"}"#)
         #expect(await keyboard.next() == false)
     }
+
+    // MARK: - sendEnsuringConnection
+
+    @Test func ensuringConnectionSendsImmediatelyWhenConnected() async throws {
+        let t = Self.paired()
+        var states = t.session.states.makeAsyncIterator()
+        let transport = await t.connectPaired(&states)
+
+        try await t.session.sendEnsuringConnection(.power, timeout: .seconds(3))
+        #expect(transport.sent == [RemoteProtocol.key(.power, .click)])
+        #expect(t.factory.count == 1)
+        #expect(t.clock.sleeperCount == 0)
+    }
+
+    @Test func ensuringConnectionConnectsFromIdleThenSends() async throws {
+        let t = Self.paired()
+        let send = Task { try await t.session.sendEnsuringConnection(.power, timeout: .seconds(3)) }
+        let transport = await t.factory.transport(0)
+        transport.push(connectEventNoToken)
+        try await send.value
+        #expect(transport.sent == [RemoteProtocol.key(.power, .click)])
+        #expect(await t.session.currentState == .connected)
+    }
+
+    @Test func ensuringConnectionRestartsFromFailed() async throws {
+        let t = Self.paired(connectResults: [0: .failure(.unreachable)])
+        var states = t.session.states.makeAsyncIterator()
+        await t.session.connect()
+        #expect(await states.next() == .connecting)
+        #expect(await states.next() == .failed(.unreachable))
+
+        let send = Task { try await t.session.sendEnsuringConnection(.power, timeout: .seconds(3)) }
+        let transport = await t.factory.transport(1)
+        transport.push(connectEventNoToken)
+        try await send.value
+        #expect(transport.sent == [RemoteProtocol.key(.power, .click)])
+    }
+
+    @Test func ensuringConnectionPropagatesFailure() async {
+        let t = Self.paired(connectResults: [0: .failure(.pinMismatch)])
+        await #expect(throws: SessionError.identityChanged) {
+            try await t.session.sendEnsuringConnection(.power, timeout: .seconds(3))
+        }
+    }
+
+    @Test func ensuringConnectionReportsFailureEvenWhenStateRepeats() async {
+        // Already failed with .unreachable; the new attempt fails the same way without a new state value.
+        let session = RemoteSession(
+            id: tvID, host: "8.8.8.8", credentials: store,
+            transport: { [factory] in factory.make() }, clock: clock
+        )
+        await session.connect()
+        while await session.currentState != .failed(.unreachable) { await Task.yield() }
+        await #expect(throws: SessionError.unreachable) {
+            try await session.sendEnsuringConnection(.power, timeout: .seconds(3))
+        }
+    }
+
+    @Test func ensuringConnectionTimesOut() async {
+        let t = Self.paired()
+        let send = Task { try await t.session.sendEnsuringConnection(.power, timeout: .seconds(3)) }
+        let transport = await t.factory.transport(0)
+        await t.clock.waitForSleepers(2) // approval timer + send timeout
+        #expect(t.clock.requestedSleeps.sorted() == [.seconds(3), .seconds(30)])
+        t.clock.advance(by: .seconds(3))
+        await #expect(throws: SessionError.unreachable) { try await send.value }
+        #expect(transport.sent.isEmpty)
+    }
 }
