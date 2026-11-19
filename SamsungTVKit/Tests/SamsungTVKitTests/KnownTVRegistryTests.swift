@@ -46,3 +46,13 @@ private func info(id: String = "uuid:tv-x", host: String, name: String = "Living
     let tv = try #require(registry.tvs[TVID(rawValue: "uuid:a")])
     #expect(try JSONDecoder().decode(KnownTV.self, from: JSONEncoder().encode(tv)) == tv)
 }
+
+@Test func registryEncodesAsObjectKeyedByRawID() throws {
+    var registry = KnownTVRegistry()
+    registry.record(info(id: "uuid:tv-x", host: "10.0.0.9", name: "Living", model: "QE55", mac: nil), at: Date(timeIntervalSince1970: 0))
+    let data = try JSONEncoder().encode(registry)
+    let json = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+    let tvs = try #require(json["tvs"] as? [String: Any])
+    #expect(Array(tvs.keys) == ["uuid:tv-x"])
+    #expect(try JSONDecoder().decode(KnownTVRegistry.self, from: data) == registry)
+}

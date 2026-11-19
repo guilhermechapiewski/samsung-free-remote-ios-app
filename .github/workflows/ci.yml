@@ -15,3 +15,29 @@ jobs:
         run: sudo xcode-select -s "$(ls -d /Applications/Xcode*.app | sort -V | tail -1)"
       - name: Kit tests
         run: swift test --package-path SamsungTVKit
+
+  app-tests:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select newest Xcode
+        run: sudo xcode-select -s "$(ls -d /Applications/Xcode*.app | sort -V | tail -1)"
+      - name: Build for device (unsigned)
+        run: >
+          xcodebuild build -project FreeRemote.xcodeproj -scheme FreeRemote
+          -destination generic/platform=iOS CODE_SIGNING_ALLOWED=NO
+      - name: Pick newest iPhone simulator
+        run: |
+          UDID=$(xcrun simctl list devices available -j | python3 -c '
+          import json, sys
+          runtimes = json.load(sys.stdin)["devices"]
+          ios = sorted((k for k in runtimes if ".iOS-" in k),
+                       key=lambda k: [int(p) for p in k.rsplit(".iOS-", 1)[1].split("-")])
+          print(next(d["udid"] for k in reversed(ios) for d in runtimes[k] if d["name"].startswith("iPhone")))')
+          echo "SIM_UDID=$UDID" >> "$GITHUB_ENV"
+      # Simulator builds are ad-hoc signed without a team; CODE_SIGNING_ALLOWED=NO would strip the
+      # entitlements the keychain needs, so it is only used for the device build above.
+      - name: App tests
+        run: >
+          xcodebuild test -project FreeRemote.xcodeproj -scheme FreeRemote
+          -destination "id=$SIM_UDID"

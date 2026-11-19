@@ -1,0 +1,16 @@
+// Shared build settings for all FreeRemote targets.
+// Owner-specific signing values live in the git-ignored Local.xcconfig (see Local.example.xcconfig),
+// included at the end so they override these defaults.
+
+PRODUCT_BUNDLE_IDENTIFIER = org.example.FreeRemote
+IPHONEOS_DEPLOYMENT_TARGET = 27.0
+TARGETED_DEVICE_FAMILY = 1
+SWIFT_VERSION = 6
+SWIFT_STRICT_CONCURRENCY = complete
+
+CODE_SIGN_STYLE = Automatic
+DEVELOPMENT_TEAM =
+
+FREE_REMOTE_ENTITLEMENTS = App/FreeRemote/FreeRemote.entitlements
+
+#include? "Local.xcconfig"
