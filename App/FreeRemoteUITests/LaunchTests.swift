@@ -2,9 +2,9 @@ import XCTest
 
 final class LaunchTests: XCTestCase {
     @MainActor
-    func testLaunchShowsPlaceholder() {
+    func testLaunchShowsRemote() {
         let app = XCUIApplication()
         app.launch()
-        XCTAssertTrue(app.staticTexts["Free Remote"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["TV picker"].waitForExistence(timeout: 10))
     }
 }
