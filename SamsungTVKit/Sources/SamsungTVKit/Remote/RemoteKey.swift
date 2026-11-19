@@ -39,3 +39,12 @@ public enum KeyAction: String, Sendable {
     case press = "Press"
     case release = "Release"
 }
+
+/// How the app repeats a held key (volume, arrows): one Press then Release, or repeated Clicks.
+/// The default is the conservative choice until verified on real TVs (see docs/protocol-notes.md).
+public enum RepeatStrategy: Sendable, Equatable {
+    case pressRelease
+    case clickEvery(Duration)
+
+    public static let `default`: RepeatStrategy = .clickEvery(.milliseconds(150))
+}

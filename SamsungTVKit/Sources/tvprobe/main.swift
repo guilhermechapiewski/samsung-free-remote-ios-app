@@ -1,0 +1,225 @@
+// tvprobe: developer tool for exercising SamsungTVKit against real or fake TVs. Not shipped.
+import Foundation
+import SamsungTVKit
+
+let usage = """
+usage:
+  tvprobe discover
+  tvprobe info <host>
+  tvprobe key <host> <KEY> [click|press|release]
+  tvprobe hold <host> <KEY> <seconds>
+  tvprobe text <host> <string>
+  tvprobe listen <host>
+  tvprobe wake <mac>
+"""
+
+func fail(_ message: String, showUsage: Bool = false) -> Never {
+    FileHandle.standardError.write(Data((message + (showUsage ? "\n" + usage : "") + "\n").utf8))
+    exit(1)
+}
+
+func out(_ s: String) { print(s) }
+
+// MARK: - Credentials (dev only: plain JSON file, 0600)
+
+final class FileCredentialStore: CredentialStore {
+    private let lock = NSLock()
+    private let url: URL
+
+    init() {
+        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        url = base.appendingPathComponent("tvprobe/credentials.json")
+    }
+
+    private func readAll() -> [String: TVCredentials] {
+        guard let data = try? Data(contentsOf: url) else { return [:] }
+        return (try? JSONDecoder().decode([String: TVCredentials].self, from: data)) ?? [:]
+    }
+
+    private func writeAll(_ all: [String: TVCredentials]) throws {
+        let dir = url.deletingLastPathComponent()
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true,
+                                                attributes: [.posixPermissions: 0o700])
+        let data = try JSONEncoder().encode(all)
+        try data.write(to: url, options: .atomic)
+        try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
+    }
+
+    func load(_ id: TVID) -> TVCredentials? {
+        lock.lock(); defer { lock.unlock() }
+        return readAll()[id.rawValue]
+    }
+
+    func save(_ c: TVCredentials, for id: TVID) throws {
+        lock.lock(); defer { lock.unlock() }
+        var all = readAll()
+        all[id.rawValue] = c
+        try writeAll(all)
+    }
+
+    func delete(_ id: TVID) {
+        lock.lock(); defer { lock.unlock() }
+        var all = readAll()
+        all[id.rawValue] = nil
+        try? writeAll(all)
+    }
+}
+
+// MARK: - Helpers
+
+func powerText(_ p: TVPowerState) -> String {
+    switch p {
+    case .on: "on"
+    case .standby: "standby"
+    case .unknown(let s): "unknown(\(s))"
+    }
+}
+
+func fetchInfo(_ host: String) async -> TVDeviceInfo {
+    do { return try await HTTPTVInfoFetcher().fetchInfo(host: host) }
+    catch { fail("info failed for \(host): \(error)") }
+}
+
+func makeSession(host: String) async -> RemoteSession {
+    let info = await fetchInfo(host)
+    return RemoteSession(id: info.id, host: host, credentials: FileCredentialStore(),
+                         transport: { URLSessionWebSocketTransport() })
+}
+
+func waitConnected(_ session: RemoteSession) async {
+    await session.connect()
+    for await state in session.states {
+        switch state {
+        case .connected: return
+        case .awaitingApproval: out("waiting for approval on the TV...")
+        case .failed(let e): fail("session failed: \(e)")
+        default: break
+        }
+    }
+    fail("session ended before connecting")
+}
+
+func parseKey(_ s: String) -> RemoteKey {
+    guard let key = RemoteKey(rawValue: s) else {
+        fail("unknown key \(s); known: " + RemoteKey.allCases.map(\.rawValue).joined(separator: " "))
+    }
+    return key
+}
+
+/// First up, private, non-loopback IPv4 interface (Wi-Fi is not always en0 on a Mac).
+func firstPrivateInterface() -> IPv4Interface? {
+    NetworkInterfaces.current().first {
+        $0.netmask != 0 && !$0.name.hasPrefix("lo") && LocalAddress.isAllowed($0.addressString)
+    }
+}
+
+// MARK: - Commands
+
+func discover() async {
+    let coordinator = DiscoveryCoordinator(
+        sources: [SSDPSearcher(duration: .seconds(5)), BonjourSamsungBrowser(duration: .seconds(5))],
+        fetcher: HTTPTVInfoFetcher(), knownHosts: [])
+    var count = 0
+    for await event in await coordinator.scan() {
+        switch event {
+        case .found(let i):
+            count += 1
+            out("\(i.id.rawValue)  \(i.host)  \(i.modelName)  \(powerText(i.powerState))  \(i.name)")
+        case .localNetworkDenied:
+            out("local network access denied")
+        }
+    }
+    out("\(count) TV(s) found")
+}
+
+func info(_ host: String) async {
+    let i = await fetchInfo(host)
+    out("id: \(i.id.rawValue)")
+    out("host: \(i.host)")
+    out("name: \(i.name)")
+    out("model: \(i.modelName) (\(i.modelCode))")
+    out("mac: \(i.wifiMAC?.description ?? "-")")
+    out("network: \(i.networkType)")
+    out("power: \(powerText(i.powerState))")
+    out("tokenAuth: \(i.tokenAuthSupported)")
+}
+
+func key(_ host: String, _ keyName: String, _ actionName: String) async {
+    let k = parseKey(keyName)
+    let action: KeyAction
+    switch actionName.lowercased() {
+    case "click": action = .click
+    case "press": action = .press
+    case "release": action = .release
+    default: fail("action must be click, press or release", showUsage: true)
+    }
+    let session = await makeSession(host: host)
+    await waitConnected(session)
+    do { try await session.send(k, action) } catch { fail("send failed: \(error)") }
+    try? await Task.sleep(for: .milliseconds(300))
+    await session.disconnect()
+}
+
+func hold(_ host: String, _ keyName: String, _ seconds: Double) async {
+    let k = parseKey(keyName)
+    let session = await makeSession(host: host)
+    await waitConnected(session)
+    do {
+        out("press/release for \(seconds)s")
+        try await session.send(k, .press)
+        try await Task.sleep(for: .seconds(seconds))
+        try await session.send(k, .release)
+        try await Task.sleep(for: .seconds(1))
+        out("repeated click every 150ms for \(seconds)s")
+        let end = ContinuousClock.now + .seconds(seconds)
+        while ContinuousClock.now < end {
+            try await session.send(k, .click)
+            try await Task.sleep(for: .milliseconds(150))
+        }
+    } catch { fail("hold failed: \(error)") }
+    await session.disconnect()
+}
+
+func text(_ host: String, _ string: String) async {
+    let session = await makeSession(host: host)
+    await waitConnected(session)
+    do {
+        try await session.sendText(string)
+        try await session.sendTextEnd()
+    } catch { fail("text failed: \(error)") }
+    try? await Task.sleep(for: .milliseconds(300))
+    await session.disconnect()
+}
+
+func listen(_ host: String) async {
+    let session = await makeSession(host: host)
+    await session.connect()
+    Task { for await s in session.states { out("state: \(s)") } }
+    for await shown in session.keyboardEvents { out("keyboard: \(shown ? "shown" : "hidden")") }
+}
+
+func wake(_ macText: String) async {
+    guard let mac = MACAddress(macText) else { fail("invalid MAC", showUsage: true) }
+    guard let iface = firstPrivateInterface() else { fail("no up private IPv4 interface") }
+    out("sending magic packet via \(iface.name)")
+    await WakeOnLAN.send(to: mac, via: iface)
+}
+
+// MARK: - Dispatch
+
+let args = Array(CommandLine.arguments.dropFirst())
+guard let command = args.first else { fail("missing command", showUsage: true) }
+let rest = Array(args.dropFirst())
+
+switch (command, rest.count) {
+case ("discover", 0): await discover()
+case ("info", 1): await info(rest[0])
+case ("key", 2), ("key", 3): await key(rest[0], rest[1], rest.count == 3 ? rest[2] : "click")
+case ("hold", 3):
+    guard let secs = Double(rest[2]), secs > 0 else { fail("seconds must be a positive number", showUsage: true) }
+    await hold(rest[0], rest[1], secs)
+case ("text", 2): await text(rest[0], rest[1])
+case ("listen", 1): await listen(rest[0])
+case ("wake", 1): await wake(rest[0])
+default: fail("bad arguments", showUsage: true)
+}

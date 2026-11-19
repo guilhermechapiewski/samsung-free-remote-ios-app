@@ -6,9 +6,11 @@ let package = Package(
     platforms: [.iOS("27.0"), .macOS("27.0")],
     products: [
         .library(name: "SamsungTVKit", targets: ["SamsungTVKit"]),
+        .executable(name: "tvprobe", targets: ["tvprobe"]),
     ],
     targets: [
         .target(name: "SamsungTVKit"),
+        .executableTarget(name: "tvprobe", dependencies: ["SamsungTVKit"]),
         .testTarget(
             name: "SamsungTVKitTests",
             dependencies: ["SamsungTVKit"],
