@@ -217,13 +217,21 @@ private final class FakePower: PowerToggling {
 }
 
 private final class FakeFetcher: TVInfoFetching {
-    let infos: [String: TVDeviceInfo]
+    private let answers: Mutex<[String: TVDeviceInfo]>
+    /// What the fetcher answers now (by host); change it to simulate a TV coming on or going away.
+    var infos: [String: TVDeviceInfo] {
+        get { answers.withLock { $0 } }
+        set { answers.withLock { $0 = newValue } }
+    }
     let requested = Mutex<[String]>([])
     /// Answers counted once each fetch returns.
     let answered = Mutex(0)
     /// Holds every fetch while closed.
     let gate = Gate()
-    init(_ infos: [TVDeviceInfo] = []) { self.infos = Dictionary(uniqueKeysWithValues: infos.map { ($0.host, $0) }) }
+    init(_ infos: [TVDeviceInfo] = []) {
+        answers = Mutex(Dictionary(uniqueKeysWithValues: infos.map { ($0.host, $0) }))
+    }
+    func answer(_ info: TVDeviceInfo) { infos[info.host] = info }
     func fetchInfo(host: String) async throws(TVInfoError) -> TVDeviceInfo {
         requested.withLock { $0.append(host) }
         await gate.wait()
@@ -649,21 +657,20 @@ private let tvC = info("uuid:c", host: "192.168.1.12", name: "Alpha", model: "QE
         await settle { !h.model.powerBusy }
         #expect(h.power.calls.withLock { $0 } == [tvA.id])
         #expect(h.model.statusMessage
-            == "Couldn't turn on the TV. On the TV, turn on “Power On with Mobile”: Settings → Connection → Network → "
-            + "Expert Settings → Power On with Mobile (on some TVs: Settings → General → Network → Expert Settings). "
-            + "Then turn the TV off and try again.")
+            == "The TV hasn't turned on yet. If it does, it connects here on its own. If it stays off, check "
+            + "that “Power On with Mobile” is on (Settings → Connection → Network → Expert Settings → Power On "
+            + "with Mobile; on some TVs: Settings → General → Network → Expert Settings) or use the TV's own "
+            + "remote.")
     }
 
-    @Test func powerFailureWithoutMulticastSuggestsTheTVRemote() async {
+    @Test func powerFailureMessageIsTheSameWithoutMulticast() async {
+        // The 2026-11-20 overnight test: broadcast wake packets fail after hours off just like unicast ones.
         let h = Harness(known: [tvA], selected: tvA.id, power: .failedToWake, multicast: false)
         await h.appear()
         await settle { h.sessions.last?.snapshot.connects == 1 }
         h.model.togglePower()
         await settle { !h.model.powerBusy }
-        #expect(h.model.statusMessage
-            == "Couldn't turn on the TV. Check that “Power On with Mobile” is on: Settings → Connection → Network → "
-            + "Expert Settings → Power On with Mobile (on some TVs: Settings → General → Network → Expert Settings). "
-            + "If it is and the TV has been off for a long time, turn it on with its own remote.")
+        #expect(h.model.statusMessage == AppModel.failedToWakeMessage)
     }
 
     @Test func infoPlistMulticastFlagIsExpanded() {
@@ -729,6 +736,95 @@ private let tvC = info("uuid:c", host: "192.168.1.12", name: "Alpha", model: "QE
         first.emit(.failed(.denied))
         await drain()
         #expect(h.model.screen == .ready)
+    }
+
+    // MARK: Watching an unreachable TV
+
+    /// The selected TV's session failed as unreachable (the TV is off or slow to boot).
+    private func unreachableSelected(_ h: Harness) async {
+        await h.appear()
+        h.discovery.finish()
+        await settle { h.sessions.last?.snapshot.connects == 1 }
+        h.sessions.last?.emit(.failed(.unreachable))
+        // The TV already shows as unreachable before the event (no scan saw it), so wait for the message.
+        await settle { h.model.statusMessage == AppModel.unreachableMessage }
+    }
+
+    @Test func reconnectsWhenAnUnreachableTVComesOn() async {
+        let h = Harness(known: [tvA], selected: tvA.id)
+        await unreachableSelected(h)
+        await settle { h.clock.sleeperCount > 0 }
+        h.clock.advance(by: AppModel.watchInterval)
+        await settle { h.fetcher.requested.withLock { $0 }.contains(tvA.host) }
+        #expect(h.sessions.list.count == 1) // still off: nothing to do
+
+        h.fetcher.answer(tvA) // the TV finished booting
+        await settle { h.clock.sleeperCount > 0 }
+        h.clock.advance(by: AppModel.watchInterval)
+        await settle { h.sessions.list.count == 2 }
+        #expect(h.sessions.list.count == 2)
+        #expect(h.model.tvs.first?.status == .on)
+    }
+
+    @Test func watchingIgnoresAStandbyAnswer() async {
+        var standby = tvA
+        standby.powerState = .standby
+        let h = Harness(known: [tvA], selected: tvA.id, fetchable: [standby])
+        await unreachableSelected(h)
+        for _ in 0..<3 {
+            await settle { h.clock.sleeperCount > 0 }
+            h.clock.advance(by: AppModel.watchInterval)
+            await drain()
+        }
+        #expect(h.sessions.list.count == 1) // asleep is not on; Power is the way to wake it
+    }
+
+    @Test func watchingStopsInTheBackground() async {
+        let h = Harness(known: [tvA], selected: tvA.id)
+        await unreachableSelected(h)
+        h.model.scenePhaseChanged(.background)
+        await drain()
+        let before = h.fetcher.requested.withLock { $0.count }
+        h.clock.advance(by: AppModel.watchInterval * 3)
+        await drain()
+        #expect(h.fetcher.requested.withLock { $0.count } == before)
+    }
+
+    @Test func noWatchingWhileConnected() async {
+        let h = Harness(known: [tvA], selected: tvA.id, fetchable: [tvA])
+        await h.appear()
+        h.discovery.finish()
+        await h.connectCurrent()
+        h.clock.advance(by: AppModel.watchInterval * 3)
+        await drain()
+        #expect(h.fetcher.requested.withLock { $0 }.isEmpty)
+    }
+
+    @Test func failedWakeKeepsWatchingAndClearsItsMessage() async {
+        let h = Harness(known: [tvA], selected: tvA.id, power: .failedToWake)
+        await unreachableSelected(h)
+        h.model.togglePower()
+        await settle { !h.model.powerBusy && h.model.statusMessage != nil }
+        #expect(h.model.statusIsDismissable)
+
+        h.fetcher.answer(tvA) // it came on after the power controller gave up
+        await settle { h.clock.sleeperCount > 0 }
+        h.clock.advance(by: AppModel.watchInterval)
+        await settle { h.sessions.list.count == 2 }
+        h.sessions.last?.emit(.connecting)
+        await settle { h.model.statusMessage == nil }
+        #expect(h.model.statusMessage == nil)
+    }
+
+    @Test func dismissingAMessage() async {
+        let h = Harness(known: [tvA], selected: tvA.id)
+        await unreachableSelected(h)
+        h.model.statusMessage = AppModel.failedToWakeMessage
+        #expect(h.model.statusIsDismissable)
+        h.model.dismissStatusMessage()
+        #expect(h.model.statusMessage == nil)
+        #expect(!h.model.statusIsDismissable) // what remains describes the session; it can't be dismissed
+        #expect(h.model.status?.text == AppModel.unreachableMessage)
     }
 
     // MARK: Launch

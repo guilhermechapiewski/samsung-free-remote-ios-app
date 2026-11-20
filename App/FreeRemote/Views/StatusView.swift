@@ -41,8 +41,13 @@ extension StatusTone {
 /// went wrong (orange), or plain information. Tinted so a change is hard to miss.
 struct StatusView: View {
     let line: StatusLine?
+    /// Shows a close button when set (for transient messages, not ones describing the session).
+    var onDismiss: (() -> Void)?
 
-    init(_ line: StatusLine?) { self.line = line }
+    init(_ line: StatusLine?, onDismiss: (() -> Void)? = nil) {
+        self.line = line
+        self.onDismiss = onDismiss
+    }
 
     var body: some View {
         ZStack {
@@ -58,6 +63,9 @@ struct StatusView: View {
         .accessibilityLabel(line?.text ?? "")
         .accessibilityHidden(line == nil)
         .accessibilityIdentifier("status")
+        .accessibilityActions {
+            if let onDismiss { Button("Dismiss", action: onDismiss) }
+        }
     }
 
     private func content(_ line: StatusLine) -> some View {
@@ -78,6 +86,22 @@ struct StatusView: View {
                 .foregroundStyle(line.tone == .info ? Color.primary : tint)
                 .multilineTextAlignment(.leading)
                 .fixedSize(horizontal: false, vertical: true)
+            if let onDismiss {
+                Spacer(minLength: 0)
+                Button(action: onDismiss) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.title3)
+                        .symbolRenderingMode(.hierarchical)
+                        .foregroundStyle(line.tone == .info ? Color.secondary : tint)
+                        .frame(width: 44, height: 44) // a full-size touch target
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .padding(.vertical, -12) // keep the line's height; the touch target overhangs
+                .padding(.trailing, -10)
+                .accessibilityLabel("Dismiss")
+                .accessibilityIdentifier("dismiss-status")
+            }
         }
         .font(.subheadline.weight(.semibold))
         .padding(.horizontal, 14)
@@ -233,7 +257,7 @@ struct StateCard: View {
     VStack(spacing: 20) {
         StatusView(StatusLine("Connecting to Living Room…", tone: .progress))
         StatusView(StatusLine("Connected to Living Room", tone: .success))
-        StatusView(StatusLine(AppModel.unreachableMessage, tone: .warning))
+        StatusView(StatusLine(AppModel.failedToWakeMessage, tone: .warning)) {}
         StatusView(StatusLine(AppModel.turnedOffMessage, tone: .info))
     }
     .padding()

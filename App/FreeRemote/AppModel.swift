@@ -82,14 +82,16 @@ final class AppModel {
     static let powerOnWithMobilePath =
         "Settings → Connection → Network → Expert Settings → Power On with Mobile "
         + "(on some TVs: Settings → General → Network → Expert Settings)"
+    /// The same path, for use inside parentheses.
+    static let powerOnWithMobilePathInline =
+        "Settings → Connection → Network → Expert Settings → Power On with Mobile; "
+        + "on some TVs: Settings → General → Network → Expert Settings"
+    /// The TV did not answer as on within the power controller's wait. The app keeps watching (see
+    /// `watchInterval`), so a TV that is just slow to boot still connects. Broadcast or not, a TV off for
+    /// hours may not wake at all (2026-11-20 overnight test), hence the own-remote advice.
     static let failedToWakeMessage =
-        "Couldn't turn on the TV. On the TV, turn on “Power On with Mobile”: \(powerOnWithMobilePath). "
-        + "Then turn the TV off and try again."
-    /// Without the multicast entitlement only a unicast wake packet can be sent, which a TV that has
-    /// been off for a long time may not receive.
-    static let failedToWakeUnicastOnlyMessage =
-        "Couldn't turn on the TV. Check that “Power On with Mobile” is on: \(powerOnWithMobilePath). "
-        + "If it is and the TV has been off for a long time, turn it on with its own remote."
+        "The TV hasn't turned on yet. If it does, it connects here on its own. If it stays off, check that "
+        + "“Power On with Mobile” is on (\(powerOnWithMobilePathInline)) or use the TV's own remote."
     /// Shown once per TV, after its first successful connection.
     static let powerTipTitle = "Turn On “Power On with Mobile”"
     static let powerTipMessage =
@@ -114,6 +116,9 @@ final class AppModel {
     /// answering the permission prompt), up to `deniedRetryLimit` times.
     static let deniedRetryInterval: Duration = .seconds(3)
     static let deniedRetryLimit = 20
+    /// While the selected TV is unreachable and the app is in front, its info is checked this often, so a
+    /// TV that finishes booting late, or is turned on with its own remote, connects without a scan.
+    static let watchInterval: Duration = .seconds(3)
     /// How long a Scan Again result stays on screen.
     static let scanResultDuration: Duration = .seconds(3)
 
@@ -172,6 +177,7 @@ final class AppModel {
     /// The TVs known when the user started a scan; nil while no user-started scan is running.
     @ObservationIgnored private var scanAgainBaseline: Set<TVID>?
     @ObservationIgnored private var scanResultTask: Task<Void, Never>?
+    @ObservationIgnored private var watchTask: Task<Void, Never>?
     @ObservationIgnored private var labelTask: Task<Void, Never>?
     @ObservationIgnored private var appeared = false
     @ObservationIgnored private var inBackground = false
@@ -247,6 +253,7 @@ final class AppModel {
             cancelDeniedRetries()
             closeSession()
             rebuildTVs()
+            updateWatch()
         case .active:
             if inBackground {
                 inBackground = false
@@ -461,6 +468,7 @@ final class AppModel {
         current = nil
         sessionState = .idle
         endConnectedConfirmation()
+        updateWatch()
         keyboardRequested = false
         let disconnect = handle.close()
         afterTeardown { await disconnect.value }
@@ -507,6 +515,7 @@ final class AppModel {
         }
         if state != .connected { repeater.end() }
         rebuildTVs()
+        updateWatch()
     }
 
     private func keyboardChanged(_ shown: Bool, on handle: SessionHandle) {
@@ -682,7 +691,7 @@ final class AppModel {
             if sessionState != .connected { openSession(id) }
             rescan()
         case .failedToWake:
-            statusMessage = env.multicastEnabled ? Self.failedToWakeMessage : Self.failedToWakeUnicastOnlyMessage
+            statusMessage = Self.failedToWakeMessage
         case .noMACKnown:
             statusMessage = Self.noMACKnownMessage
         case .notOnWiFi:
@@ -769,6 +778,13 @@ final class AppModel {
     /// explanation of the state; nil when the selected TV is connected and there is nothing to say.
     var statusText: String? { status?.text }
 
+    /// The status line shows a transient message the user can dismiss (not one describing the session).
+    var statusIsDismissable: Bool { powerDirection == nil && statusMessage != nil }
+
+    func dismissStatusMessage() {
+        statusMessage = nil
+    }
+
     /// The status line above the D-pad: what is happening with the selected TV, or what went wrong.
     var status: StatusLine? {
         if let powerDirection {
@@ -844,6 +860,49 @@ final class AppModel {
         case .pairing: "Pairing with the TV…"
         case .pairingDenied: "The TV blocked this iPhone"
         case .identityChanged: "The TV's security identity changed"
+        }
+    }
+
+    // MARK: - Watching an unreachable TV
+
+    /// The app is in front on Wi-Fi and the selected TV's session failed as unreachable (off, or still
+    /// booting after Power). Approval timeouts are excluded: reconnecting would prompt on the TV again.
+    private var shouldWatchSelected: Bool {
+        appeared && !inBackground && onWiFi && selectedID != nil && sessionState == .failed(.unreachable)
+    }
+
+    private func updateWatch() {
+        if shouldWatchSelected {
+            if watchTask == nil { startWatch() }
+        } else {
+            watchTask?.cancel()
+            watchTask = nil
+        }
+    }
+
+    /// Every `watchInterval`, asks the selected TV for its info (one small local HTTP request); when it
+    /// answers as on, treats it as found, which reconnects. Ends once there is nothing to watch.
+    private func startWatch() {
+        let clock = env.clock
+        let fetcher = env.fetcher
+        watchTask = Task { [weak self] in
+            while !Task.isCancelled {
+                do {
+                    try await clock.sleep(for: Self.watchInterval)
+                } catch {
+                    return // cancelled
+                }
+                guard let self, self.shouldWatchSelected, let id = self.selectedID,
+                      let host = self.registry.tvs[id]?.lastHost else {
+                    self?.watchTask = nil
+                    return
+                }
+                if self.powerBusy { continue } // the power toggle is already checking
+                guard let info = try? await fetcher.fetchInfo(host: host), !Task.isCancelled,
+                      info.id == id, info.powerState == .on, self.selectedID == id, self.shouldWatchSelected
+                else { continue }
+                self.handle(.found(info))
+            }
         }
     }
 

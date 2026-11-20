@@ -100,6 +100,13 @@ a haptic tap:
 - [ ] **TV Details** with the TV unplugged: shows the last known details and the "didn't answer" note.
 - [ ] "Feedback & Bug Reports" opens the project's GitHub issues page in the default browser.
 
+## Recovering from a slow or failed power-on
+
+- [ ] Press Power on a TV that takes long to boot (or turn it on with its own remote while the app shows it as
+      unreachable): within a few seconds of the TV coming on, the app connects by itself, without Scan Again,
+      and the "hasn't turned on yet" message goes away.
+- [ ] Warning messages such as "The TV hasn't turned on yet…" have an ✕ that dismisses them.
+
 ## Control Center control
 
 - [ ] In Control Center → "+" → Add a Control, "TV Remote" is listed; tapping the added control opens the app

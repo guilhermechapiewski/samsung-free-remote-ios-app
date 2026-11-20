@@ -203,7 +203,6 @@ private struct DemoPower: PowerToggling {
     }
 }
 
-/// No TV answers at a typed-in address in demo mode.
 /// Answers for the demo TVs that are on the demo network.
 private struct DemoFetcher: TVInfoFetching {
     let infos: [String: TVDeviceInfo]

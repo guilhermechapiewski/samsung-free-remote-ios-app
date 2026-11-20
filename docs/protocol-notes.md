@@ -11,6 +11,9 @@ confirmed on real hardware; see the checklist at the end.
   access point's BSSID on the TVs seen so far; shown only when it is a MAC), the `*Support` feature flags,
   `developerMode`, `firmwareVersion` (most TVs say "Unknown"; hidden then) and the top-level `version`.
   The model year comes from the `model` code's two-digit prefix ("22_…" is 2022).
+  While the selected TV's session has failed as unreachable and the app is in front, the app GETs this
+  endpoint every 3 s and reconnects once the TV answers `PowerState: on` (a TV that boots after the power
+  toggle stopped waiting, or one turned on with its own remote). A `standby` answer is ignored.
 - `wss://<host>:8002/api/v2/channels/samsung.remote.control?name=<base64 name>[&token=<token>]` — the
   remote-control channel. The pairing name sent is the constant `TV Remote` (base64 encoded).
   Port 8001 is never used for control.
