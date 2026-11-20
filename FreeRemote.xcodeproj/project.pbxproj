@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		F0000000000000000000B001 /* SamsungTVKit in Frameworks */ = {isa = PBXBuildFile; productRef = F0000000000000000000D001 /* SamsungTVKit */; };
 		F0000000000000000000B002 /* SamsungTVKit in Frameworks */ = {isa = PBXBuildFile; productRef = F0000000000000000000D002 /* SamsungTVKit */; };
+		F0000000000000000000B003 /* FreeRemoteControls.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = F0000000000000000000F006 /* FreeRemoteControls.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -26,7 +27,28 @@
 			remoteGlobalIDString = F0000000000000000000E001;
 			remoteInfo = FreeRemote;
 		};
+		F0000000000000000000C103 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = F0000000000000000000A001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = F0000000000000000000E004;
+			remoteInfo = FreeRemoteControls;
+		};
 /* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		F0000000000000000001F105 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				F0000000000000000000B003 /* FreeRemoteControls.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		F0000000000000000000F001 /* FreeRemote.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = FreeRemote.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -34,6 +56,7 @@
 		F0000000000000000000F003 /* FreeRemoteUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FreeRemoteUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		F0000000000000000000F004 /* Base.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Base.xcconfig; sourceTree = "<group>"; };
 		F0000000000000000000F005 /* Local.example.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Local.example.xcconfig; sourceTree = "<group>"; };
+		F0000000000000000000F006 /* FreeRemoteControls.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = FreeRemoteControls.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -45,6 +68,13 @@
 				Info.plist,
 			);
 			target = F0000000000000000000E001 /* FreeRemote */;
+		};
+		F00000000000000000027002 /* Exceptions for "App/FreeRemoteControls" folder in "FreeRemoteControls" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = F0000000000000000000E004 /* FreeRemoteControls */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
@@ -65,6 +95,19 @@
 		F00000000000000000022003 /* App/FreeRemoteUITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = App/FreeRemoteUITests;
+			sourceTree = "<group>";
+		};
+		F00000000000000000022004 /* App/FreeRemoteControls */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				F00000000000000000027002 /* Exceptions for "App/FreeRemoteControls" folder in "FreeRemoteControls" target */,
+			);
+			path = App/FreeRemoteControls;
+			sourceTree = "<group>";
+		};
+		F00000000000000000022005 /* App/Shared */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = App/Shared;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -93,6 +136,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		F0000000000000000001F401 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -101,6 +151,8 @@
 			children = (
 				F00000000000000000016003 /* Config */,
 				F00000000000000000022001 /* App/FreeRemote */,
+				F00000000000000000022005 /* App/Shared */,
+				F00000000000000000022004 /* App/FreeRemoteControls */,
 				F00000000000000000022002 /* App/FreeRemoteTests */,
 				F00000000000000000022003 /* App/FreeRemoteUITests */,
 				F00000000000000000016002 /* Products */,
@@ -113,6 +165,7 @@
 				F0000000000000000000F001 /* FreeRemote.app */,
 				F0000000000000000000F002 /* FreeRemoteTests.xctest */,
 				F0000000000000000000F003 /* FreeRemoteUITests.xctest */,
+				F0000000000000000000F006 /* FreeRemoteControls.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -137,13 +190,16 @@
 				F0000000000000000001F102 /* Sources */,
 				F0000000000000000001F101 /* Frameworks */,
 				F0000000000000000001F103 /* Resources */,
+				F0000000000000000001F105 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				F00000000000000000023003 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				F00000000000000000022001 /* App/FreeRemote */,
+				F00000000000000000022005 /* App/Shared */,
 			);
 			name = FreeRemote;
 			packageProductDependencies = (
@@ -198,6 +254,27 @@
 			productReference = F0000000000000000000F003 /* FreeRemoteUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
+		F0000000000000000000E004 /* FreeRemoteControls */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = F0000000000000000001B005 /* Build configuration list for PBXNativeTarget "FreeRemoteControls" */;
+			buildPhases = (
+				F0000000000000000001F402 /* Sources */,
+				F0000000000000000001F401 /* Frameworks */,
+				F0000000000000000001F403 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				F00000000000000000022004 /* App/FreeRemoteControls */,
+				F00000000000000000022005 /* App/Shared */,
+			);
+			name = FreeRemoteControls;
+			productName = FreeRemoteControls;
+			productReference = F0000000000000000000F006 /* FreeRemoteControls.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -218,6 +295,9 @@
 					F0000000000000000000E003 = {
 						CreatedOnToolsVersion = 27.2;
 						TestTargetID = F0000000000000000000E001;
+					};
+					F0000000000000000000E004 = {
+						CreatedOnToolsVersion = 27.2;
 					};
 				};
 			};
@@ -241,6 +321,7 @@
 				F0000000000000000000E001 /* FreeRemote */,
 				F0000000000000000000E002 /* FreeRemoteTests */,
 				F0000000000000000000E003 /* FreeRemoteUITests */,
+				F0000000000000000000E004 /* FreeRemoteControls */,
 			);
 		};
 /* End PBXProject section */
@@ -261,6 +342,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		F0000000000000000001F303 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F0000000000000000001F403 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -314,6 +402,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		F0000000000000000001F402 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -326,6 +421,11 @@
 			isa = PBXTargetDependency;
 			target = F0000000000000000000E001 /* FreeRemote */;
 			targetProxy = F0000000000000000000C102 /* PBXContainerItemProxy */;
+		};
+		F00000000000000000023003 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = F0000000000000000000E004 /* FreeRemoteControls */;
+			targetProxy = F0000000000000000000C103 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -390,7 +490,6 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = "$(FREE_REMOTE_ENTITLEMENTS)";
-				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = App/FreeRemote/Info.plist;
@@ -398,7 +497,6 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 			};
@@ -411,7 +509,6 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = "$(FREE_REMOTE_ENTITLEMENTS)";
-				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = App/FreeRemote/Info.plist;
@@ -419,7 +516,6 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 			};
@@ -430,9 +526,7 @@
 			baseConfigurationReference = F0000000000000000000F004 /* Base.xcconfig */;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
-				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "$(inherited).Tests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -445,9 +539,7 @@
 			baseConfigurationReference = F0000000000000000000F004 /* Base.xcconfig */;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
-				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "$(inherited).Tests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -459,9 +551,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = F0000000000000000000F004 /* Base.xcconfig */;
 			buildSettings = {
-				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "$(inherited).UITests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -473,13 +563,49 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = F0000000000000000000F004 /* Base.xcconfig */;
 			buildSettings = {
-				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "$(inherited).UITests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				TEST_TARGET_NAME = FreeRemote;
+			};
+			name = Release;
+		};
+		F00000000000000000021041 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = F0000000000000000000F004 /* Base.xcconfig */;
+			buildSettings = {
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = App/FreeRemoteControls/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "TV Remote";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "$(inherited).Controls";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+			};
+			name = Debug;
+		};
+		F00000000000000000021042 /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = F0000000000000000000F004 /* Base.xcconfig */;
+			buildSettings = {
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = App/FreeRemoteControls/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "TV Remote";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "$(inherited).Controls";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
 			};
 			name = Release;
 		};
@@ -518,6 +644,15 @@
 			buildConfigurations = (
 				F00000000000000000021031 /* Debug */,
 				F00000000000000000021032 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		F0000000000000000001B005 /* Build configuration list for PBXNativeTarget "FreeRemoteControls" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F00000000000000000021041 /* Debug */,
+				F00000000000000000021042 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

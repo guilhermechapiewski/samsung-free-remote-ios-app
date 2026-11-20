@@ -100,6 +100,12 @@ a haptic tap:
 - [ ] **TV Details** with the TV unplugged: shows the last known details and the "didn't answer" note.
 - [ ] "Feedback & Bug Reports" opens the project's GitHub issues page in the default browser.
 
+## Control Center control
+
+- [ ] In Control Center → "+" → Add a Control, "TV Remote" is listed; tapping the added control opens the app
+      on the remote for the last-used TV (also from the Lock Screen, and on the Action button where available).
+- [ ] With the app already open in the background, the control brings it forward and it reconnects.
+
 ## Names and sync
 
 - [ ] **Rename:** "Rename…" sets a label shown in the picker; the sheet explains renaming in the TV's settings.

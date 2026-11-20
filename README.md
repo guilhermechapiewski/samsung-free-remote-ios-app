@@ -22,6 +22,7 @@ works, reuse the code under the [MIT license](LICENSE), report problems, and con
   every value can be copied
 - Send feedback or report a bug from the TV menu (opens this project's GitHub issues)
 - A TV menu in the card's own style: switch TVs, TV Details, Rename, Forget, Add TV, Scan Again
+- A Control Center control (also for the Lock Screen and the Action button) that opens the remote
 - One-time pairing per TV (choose "Allow" on the TV); haptics, VoiceOver labels, Dynamic Type, dark mode
 
 ## Requirements
@@ -86,6 +87,8 @@ xcodebuild test -project FreeRemote.xcodeproj -scheme FreeRemote \
 |---|---|
 | `SamsungTVKit/` | Swift package: discovery, device info, pairing and the control channel, power, Wake-on-LAN; `tvprobe` CLI |
 | `App/FreeRemote/` | SwiftUI app: app model, views, stores (known TVs, iCloud labels, Keychain), demo mode, assets |
+| `App/FreeRemoteControls/` | WidgetKit extension with the Control Center control |
+| `App/Shared/` | Code in both the app and the extension (the "Open TV Remote" App Intent) |
 | `App/FreeRemoteTests/`, `App/FreeRemoteUITests/` | App unit tests and UI/screenshot tests |
 | `Config/` | Shared build settings; your local signing settings |
 | `docs/` | Protocol notes, the app's privacy policy, real-device test checklist, images |
