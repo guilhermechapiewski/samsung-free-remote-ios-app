@@ -11,8 +11,11 @@ confirmed on real hardware; see the checklist at the end.
   access point's BSSID on the TVs seen so far; shown only when it is a MAC), the `*Support` feature flags,
   `developerMode`, `firmwareVersion` (most TVs say "Unknown"; hidden then) and the top-level `version`.
   The model year comes from the `model` code's two-digit prefix ("22_…" is 2022).
-  While the selected TV is not connected (its session failed as unreachable, or is retrying after a drop)
-  and the app is in front, the app GETs this endpoint every 2 s. When the TV answers `PowerState: on`, a
+  While the app is in front, the app GETs this endpoint for the selected TV every 2 s, connected or not
+  (not while pairing). While connected: `standby` means the TV was turned off with its own remote (in network
+  standby the WebSocket can stay open), so it is shown as off with only Power usable; two missed answers in
+  a row mean it lost power, so the connection is replaced (the transport's 15 s ping would take 15-30 s to
+  notice). While not connected: When the TV answers `PowerState: on`, a
   failed session reconnects, and a retry stuck waiting out its backoff (still connecting after 4 checks)
   starts over at once; so a TV that boots late or is turned on with its own remote connects within seconds.
   A `standby` answer only marks the TV asleep; no answer while retrying shows "Couldn't reach the TV"

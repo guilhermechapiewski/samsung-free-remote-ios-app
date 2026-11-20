@@ -23,7 +23,7 @@ struct RemoteView: View {
     @State private var sourcePresses = 0
 
     private var availability: RemoteAvailability {
-        RemoteAvailability(screen: model.screen, isConnected: model.isConnected, hasSelection: model.selectedID != nil)
+        RemoteAvailability(screen: model.screen, isConnected: model.controlsAvailable, hasSelection: model.selectedID != nil)
     }
 
     var body: some View {

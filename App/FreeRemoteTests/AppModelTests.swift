@@ -565,17 +565,18 @@ private let tvC = info("uuid:c", host: "192.168.1.12", name: "Alpha", model: "QE
     }
 
     @Test func holdRepeatsUntilEnd() async throws {
-        let h = Harness(known: [tvA], selected: tvA.id)
+        let h = Harness(known: [tvA], selected: tvA.id, fetchable: [tvA])
         await h.appear()
         await h.connectCurrent()
         let session = try #require(h.sessions.last)
+        await h.clock.waitForSleepers(1) // the connected TV's presence watch
 
         h.model.beginHold(.down)
-        await h.clock.waitForSleepers(1)
+        await h.clock.waitForSleepers(2) // plus the repeat timer
         h.clock.advance(by: .milliseconds(150))
         await settle { session.snapshot.sent.count == 2 }
         h.model.endHold()
-        await h.clock.waitForSleepers(0)
+        await h.clock.waitForSleepers(1)
         h.clock.advance(by: .seconds(1))
         await drain()
         #expect(session.snapshot.sent == ["KEY_DOWN", "KEY_DOWN"])
@@ -790,14 +791,19 @@ private let tvC = info("uuid:c", host: "192.168.1.12", name: "Alpha", model: "QE
         #expect(h.fetcher.requested.withLock { $0.count } == before)
     }
 
-    @Test func noWatchingWhileConnected() async {
+    @Test func aConnectedTVThatStaysOnIsLeftAlone() async {
         let h = Harness(known: [tvA], selected: tvA.id, fetchable: [tvA])
         await h.appear()
         h.discovery.finish()
         await h.connectCurrent()
-        h.clock.advance(by: AppModel.watchInterval * 3)
-        await drain()
-        #expect(h.fetcher.requested.withLock { $0 }.isEmpty)
+        for _ in 0..<3 {
+            await settle { h.clock.sleeperCount > 0 }
+            h.clock.advance(by: AppModel.watchInterval)
+            await drain()
+        }
+        #expect(h.sessions.list.count == 1)
+        #expect(h.model.status == nil)
+        #expect(h.model.controlsAvailable)
     }
 
     @Test func failedWakeKeepsWatchingAndClearsItsMessage() async {
@@ -876,6 +882,54 @@ private let tvC = info("uuid:c", host: "192.168.1.12", name: "Alpha", model: "QE
         await settle { h.model.tvs.first?.status == .asleep }
         #expect(h.model.tvs.first?.status == .asleep)
         #expect(h.sessions.list.count == 1) // asleep: Power wakes it, the app doesn't
+    }
+
+    /// Connected, with the fetcher answering `answer` (nil: no answer).
+    private func connected(_ h: Harness) async {
+        await h.appear()
+        h.discovery.finish()
+        await h.connectCurrent()
+    }
+
+    @Test func aTVTurnedOffWithItsOwnRemoteIntoStandbyIsNoticed() async {
+        var standby = tvA
+        standby.powerState = .standby
+        let h = Harness(known: [tvA], selected: tvA.id, fetchable: [tvA])
+        await connected(h)
+        h.fetcher.answer(standby) // the socket may stay open in network standby; only the info tells
+        await tick(h)
+        await settle { h.model.tvs.first?.status == .asleep }
+        #expect(h.model.status == StatusLine(AppModel.turnedOffMessage, tone: .info))
+        #expect(!h.model.controlsAvailable) // only Power does anything now
+        #expect(h.sessions.list.count == 1) // the open connection is kept: Power can use it
+
+        h.fetcher.answer(tvA) // turned back on with its own remote
+        await tick(h)
+        await settle { h.model.controlsAvailable }
+        #expect(h.model.status == nil)
+        #expect(h.model.tvs.first?.status == .on)
+    }
+
+    @Test func aConnectedTVThatStopsAnsweringIsNoticedWithinTwoChecks() async {
+        let h = Harness(known: [tvA], selected: tvA.id, fetchable: [tvA])
+        await connected(h)
+        h.fetcher.infos = [:] // gone (unplugged, or off without network standby)
+        await tick(h)
+        #expect(h.sessions.list.count == 1) // one miss is tolerated
+        await tick(h)
+        await settle { h.sessions.list.count == 2 }
+        #expect(h.sessions.list.count == 2) // the silent connection is replaced; it fails fast if gone
+        #expect(h.sessions.list.first?.snapshot.disconnects == 1)
+    }
+
+    @Test func turningOffWithTheAppNeverShowsConnecting() async {
+        let h = Harness(known: [tvA], selected: tvA.id, power: .turnedOff, powerPlan: .turnOff)
+        await connected(h)
+        h.model.togglePower()
+        await settle { !h.model.powerBusy }
+        h.sessions.last?.emit(.connecting) // the connection drops as the TV goes off
+        await settle { h.model.status?.text != nil }
+        #expect(h.model.status == StatusLine(AppModel.turnedOffMessage, tone: .info))
     }
 
     @Test func dismissingHidesTheWholeLineNotJustTheTopMessage() async {

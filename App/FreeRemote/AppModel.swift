@@ -190,6 +190,11 @@ final class AppModel {
     @ObservationIgnored private var watchTask: Task<Void, Never>?
     /// Watch ticks since the session last changed state while it is connecting.
     @ObservationIgnored private var connectingTicks = 0
+    /// Consecutive watch checks the connected TV did not answer.
+    @ObservationIgnored private var missedWhileConnected = 0
+    /// A connected TV that misses this many checks in a row is treated as gone (an open connection to a TV
+    /// that lost power can take the transport's 15-30 s ping cycle to notice).
+    static let missedChecksBeforeReconnect = 2
     /// The last watch check found the selected TV not answering while its session was retrying.
     private var watchFoundNoAnswer = false
     @ObservationIgnored private var labelTask: Task<Void, Never>?
@@ -237,6 +242,10 @@ final class AppModel {
 
     /// The selected TV's session is connected, so keys can be sent.
     var isConnected: Bool { current != nil && sessionState == .connected }
+
+    /// The remote's keys (other than Power) can be used: connected, and the TV isn't off. A TV in network
+    /// standby can keep its connection open, so being connected is not enough.
+    var controlsAvailable: Bool { isConnected && !selectedTurnedOff }
 
     private var selectedTurnedOff: Bool { selectedID.map(turnedOffTVs.contains) ?? false }
 
@@ -502,6 +511,7 @@ final class AppModel {
         guard handle === current else { return }
         statusDismissed = false
         connectingTicks = 0
+        missedWhileConnected = 0
         watchFoundNoAnswer = false
         let wasConnected = sessionState == .connected
         sessionState = state
@@ -825,6 +835,7 @@ final class AppModel {
         guard screen == .ready else { return Self.screenStatusText(screen).map { StatusLine($0, tone: .info) } }
         let name = selectedTitle
         if isConnected {
+            if selectedTurnedOff { return StatusLine(Self.turnedOffMessage, tone: .info) }
             return showsConnected ? StatusLine(name.map { "Connected to \($0)" } ?? "Connected", tone: .success) : nil
         }
         switch sessionState {
@@ -833,9 +844,11 @@ final class AppModel {
             if selectedTurnedOff { return StatusLine(Self.turnedOffMessage, tone: .info) }
             let message = sessionState == .failed(.unreachable) ? Self.unreachableMessage : Self.approvalTimedOutMessage
             return StatusLine(message, tone: .warning)
+        case .connecting where selectedTurnedOff:
+            // The connection dropped because the TV went off; it is not worth a "Connecting…".
+            return StatusLine(Self.turnedOffMessage, tone: .info)
         case .connecting where watchFoundNoAnswer:
             // The session is still retrying, but the TV isn't answering: say so rather than "Connecting…".
-            if selectedTurnedOff { return StatusLine(Self.turnedOffMessage, tone: .info) }
             return StatusLine(Self.unreachableMessage, tone: .warning)
         case .idle, .connecting, .awaitingApproval, .connected, .failed(.denied), .failed(.identityChanged):
             return StatusLine(name.map { "Connecting to \($0)…" } ?? "Connecting…", tone: .progress)
@@ -900,12 +913,16 @@ final class AppModel {
 
     // MARK: - Watching a TV that isn't connected
 
-    /// The app is in front on Wi-Fi and the selected TV's session has failed as unreachable (off, or still
-    /// booting after Power) or is retrying after a drop. Approval timeouts are excluded: reconnecting
-    /// would prompt on the TV again.
+    /// The app is in front on Wi-Fi and the selected TV's session is connected (to notice the TV turning
+    /// off), has failed as unreachable (off, or still booting after Power) or is retrying after a drop.
+    /// Pairing, denials and approval timeouts are excluded: reconnecting would prompt on the TV again.
     private var shouldWatchSelected: Bool {
         guard appeared, !inBackground, onWiFi, selectedID != nil else { return false }
-        return sessionState == .failed(.unreachable) || sessionState == .connecting
+        switch sessionState {
+        case .connected, .connecting, .failed(.unreachable): return true
+        case .idle, .awaitingApproval, .failed(.approvalTimedOut), .failed(.denied), .failed(.identityChanged):
+            return false
+        }
     }
 
     private func updateWatch() {
@@ -944,16 +961,34 @@ final class AppModel {
         }
     }
 
-    /// Acts on one watch check of the selected TV: an answer updates its status (as a scan would) and,
-    /// when it is on, reconnects a failed session or restarts a stalled attempt; no answer while retrying
-    /// is shown instead of an endless "Connecting…".
+    /// Acts on one watch check of the selected TV. An answer updates its status (as a scan would); when it
+    /// is on, a failed session reconnects and a stalled attempt restarts; standby while connected marks it
+    /// off. No answer while retrying is shown instead of an endless "Connecting…", and a connected TV that
+    /// stops answering gets a fresh connection, which fails fast if it is really gone.
     private func watchChecked(_ info: TVDeviceInfo?, for id: TVID) {
         guard let info, info.id == id else {
-            if sessionState == .connecting { watchFoundNoAnswer = true }
+            switch sessionState {
+            case .connecting:
+                watchFoundNoAnswer = true
+            case .connected:
+                missedWhileConnected += 1
+                if missedWhileConnected >= Self.missedChecksBeforeReconnect {
+                    missedWhileConnected = 0
+                    openSession(id)
+                }
+            default:
+                break
+            }
             return
         }
         watchFoundNoAnswer = false
-        handle(.found(info)) // reconnects a failed session when the TV is on
+        missedWhileConnected = 0
+        handle(.found(info)) // reconnects a failed session when the TV is on; clears "off" when on
+        if info.powerState != .on, sessionState == .connected, !selectedTurnedOff {
+            // Turned off with its own remote into network standby: the connection may stay open.
+            turnedOffTVs.insert(id)
+            rebuildTVs()
+        }
         if info.powerState == .on, sessionState == .connecting, connectingTicks >= Self.stalledConnectTicks {
             connectingTicks = 0
             openSession(id)
