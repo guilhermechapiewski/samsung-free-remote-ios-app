@@ -6,9 +6,22 @@ enum AppLinks {
     static let issues = URL(string: "https://github.com/guilhermechapiewski/samsung-free-remote-ios-app/issues")!
 }
 
+/// Opens the TV menu over the screen. Equatable so SwiftUI can tell it has not changed (a bare closure
+/// would make every reader update whenever the root view does): the action is the same for the life
+/// of the screen, so any two values are equal.
+struct OpenTVMenuAction: Equatable {
+    private let action: () -> Void
+
+    init(_ action: @escaping () -> Void) { self.action = action }
+
+    func callAsFunction() { action() }
+
+    static func == (lhs: Self, rhs: Self) -> Bool { true }
+}
+
 extension EnvironmentValues {
-    /// Opens the TV menu over the screen; set by `RootView`.
-    @Entry var openTVMenu: (() -> Void)?
+    /// Set by `RootView` (through `TVMenuOverlay`); nil in previews.
+    @Entry var openTVMenu: OpenTVMenuAction?
     /// The TV menu is open (the TV card takes VoiceOver focus back when it closes).
     @Entry var isTVMenuOpen = false
 }
@@ -274,7 +287,7 @@ struct TVMenuOverlay: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .environment(\.openTVMenu, { withAnimation(.snappy(duration: 0.25)) { isOpen = true } })
+            .environment(\.openTVMenu, OpenTVMenuAction { withAnimation(.snappy(duration: 0.25)) { isOpen = true } })
             .environment(\.isTVMenuOpen, isOpen)
             .overlayPreferenceValue(TVCardBoundsKey.self) { anchor in
                 GeometryReader { proxy in

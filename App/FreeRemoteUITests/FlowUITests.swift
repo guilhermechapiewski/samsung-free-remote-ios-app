@@ -177,6 +177,7 @@ final class FlowUITests: XCTestCase {
         attachScreenshot(app, "menu-large-text-scrolled")
     }
 
+    @MainActor
     private func attachScreenshot(_ app: XCUIApplication, _ name: String) {
         let attachment = XCTAttachment(screenshot: app.screenshot())
         attachment.name = name
