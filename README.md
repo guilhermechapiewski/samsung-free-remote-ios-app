@@ -3,7 +3,7 @@
 A free, open-source iPhone app that finds Samsung Smart TVs (Tizen) on your Wi-Fi network and controls them
 like the physical remote. No ads, no accounts, no tracking: the app only talks to TVs on your local network.
 
-The app is published on the App Store by its maintainer. The source is open so that anyone can see how it
+The app is published on the App Store, and this source is open so that anyone can see how it
 works, reuse the code under the [MIT license](LICENSE), report problems, and contribute improvements.
 
 <img src="docs/images/remote.png" alt="The remote screen" width="300">
