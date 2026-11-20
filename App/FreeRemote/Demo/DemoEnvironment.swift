@@ -60,6 +60,8 @@ enum DemoEnvironment {
         // A fresh, demo-only defaults domain that starts with the living room TV selected.
         let defaults = UserDefaults(suiteName: defaultsSuite) ?? .standard
         defaults.removePersistentDomain(forName: defaultsSuite)
+        // Demo TVs have already shown the one-time power tip, so it never covers screenshots.
+        defaults.set([livingRoom, bedroom, patio].map(\.rawValue), forKey: AppModel.powerTipShownKey)
         if [.remote, .pairing, .keyboard].contains(scenario) {
             defaults.set(livingRoom.rawValue, forKey: AppModel.selectedTVKey)
         }

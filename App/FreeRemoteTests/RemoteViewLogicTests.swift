@@ -78,13 +78,23 @@ import SamsungTVKit
         #expect(pressed4)
     }
 
+    @Test func discoveryHintsSayTheTVMustBeOn() {
+        let found = "A TV can only be found while it's on. After that, the app remembers it, even when it's off."
+        #expect(StateCard.hint(for: .searching) == found)
+        #expect(StateCard.hint(for: .noTVs) == found)
+        #expect(StateCard.hint(for: .chooseTV) == "Don't see your TV? Turn it on, then tap Scan Again.")
+        for screen in [ScreenState.ready, .noWiFi, .localNetworkDenied, .pairing, .pairingDenied, .identityChanged] {
+            #expect(StateCard.hint(for: screen) == nil)
+        }
+    }
+
     @Test func stateCardCopyIsExact() {
         #expect(StateCard.message(for: .noWiFi) == "Connect to Wi-Fi to control your TV.")
         #expect(StateCard.message(for: .localNetworkDenied)
             == "Free Remote needs Local Network access to find your TV.")
         #expect(StateCard.message(for: .searching) == "Looking for TVs…")
         #expect(StateCard.message(for: .noTVs)
-            == "No TVs found. Make sure your iPhone and TV are on the same Wi-Fi network and the TV is on.")
+            == "No TVs found. Turn your TV on and make sure your iPhone and TV are on the same Wi-Fi network.")
         #expect(StateCard.message(for: .chooseTV) == "Choose your TV")
         #expect(StateCard.message(for: .pairing) == "Look at your TV and choose Allow.")
         #expect(StateCard.message(for: .pairingDenied)

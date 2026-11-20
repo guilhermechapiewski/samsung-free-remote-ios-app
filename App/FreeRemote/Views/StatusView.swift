@@ -37,7 +37,7 @@ struct StateCard: View {
         case .noWiFi: "Connect to Wi-Fi to control your TV."
         case .localNetworkDenied: "Free Remote needs Local Network access to find your TV."
         case .searching: "Looking for TVs…"
-        case .noTVs: "No TVs found. Make sure your iPhone and TV are on the same Wi-Fi network and the TV is on."
+        case .noTVs: "No TVs found. Turn your TV on and make sure your iPhone and TV are on the same Wi-Fi network."
         case .chooseTV: "Choose your TV"
         case .pairing: "Look at your TV and choose Allow."
         case .pairingDenied:
@@ -45,6 +45,16 @@ struct StateCard: View {
                 + "Device Connection Manager → Device List, allow Free Remote, then tap Try Again."
         case .identityChanged:
             "This TV's security identity changed (this can happen after a software update). Pair again to continue."
+        }
+    }
+
+    /// A smaller second line for states where the TV has to be on to be found.
+    static func hint(for screen: ScreenState) -> String? {
+        switch screen {
+        case .searching, .noTVs:
+            "A TV can only be found while it's on. After that, the app remembers it, even when it's off."
+        case .chooseTV: "Don't see your TV? Turn it on, then tap Scan Again."
+        case .ready, .noWiFi, .localNetworkDenied, .pairing, .pairingDenied, .identityChanged: nil
         }
     }
 
@@ -76,6 +86,13 @@ struct StateCard: View {
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityAddTraits(screen == .chooseTV ? .isHeader : [])
+            }
+            if let hint = Self.hint(for: screen) {
+                Text(hint)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             actions
         }
@@ -131,6 +148,8 @@ struct StateCard: View {
                     .accessibilityLabel("\(tv.title), \(tv.status.displayName)")
                     .accessibilityAddTraits(.isButton)
                 }
+                Button("Scan Again") { model.rescan() }
+                    .buttonStyle(.bordered)
             }
         case .pairingDenied:
             Button("Try Again") { model.rescan() }

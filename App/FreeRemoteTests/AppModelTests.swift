@@ -314,6 +314,37 @@ private let tvC = info("uuid:c", host: "192.168.1.12", name: "Alpha", model: "QE
 
 @MainActor
 @Suite struct AppModelTests {
+    @Test func powerTipShownOnceAfterFirstConnection() async {
+        let h = Harness(known: [tvA], selected: tvA.id)
+        await h.appear()
+        #expect(h.model.powerTipTV == nil)
+        await h.connectCurrent()
+        #expect(h.model.powerTipTV == tvA.id)
+        h.model.dismissPowerTip()
+        #expect(h.model.powerTipTV == nil)
+        #expect(h.defaults.stringArray(forKey: AppModel.powerTipShownKey) == [tvA.id.rawValue])
+        // Reconnecting the same TV does not show it again.
+        h.sessions.last?.emit(.connecting)
+        h.sessions.last?.emit(.connected)
+        await drain()
+        #expect(h.model.powerTipTV == nil)
+    }
+
+    @Test func powerTipSkippedForTVsAlreadyShown() async {
+        let h = Harness(known: [tvA], selected: tvA.id)
+        h.defaults.set([tvA.id.rawValue], forKey: AppModel.powerTipShownKey)
+        await h.appear()
+        await h.connectCurrent()
+        #expect(h.model.powerTipTV == nil)
+    }
+
+    @Test func powerTipMessageNamesTheSettingAndPath() {
+        #expect(AppModel.powerTipMessage
+            == "To turn this TV on from your iPhone, the TV's “Power On with Mobile” setting must be on: "
+            + "Settings → Connection → Network → Expert Settings → Power On with Mobile "
+            + "(on some TVs: Settings → General → Network → Expert Settings).")
+    }
+
     @Test func noWiFiShowsWiFiState() async {
         let h = Harness(known: [tvA], selected: tvA.id, wifi: false)
         h.model.onAppear()
@@ -608,7 +639,9 @@ private let tvC = info("uuid:c", host: "192.168.1.12", name: "Alpha", model: "QE
         await settle { !h.model.powerBusy }
         #expect(h.power.calls.withLock { $0 } == [tvA.id])
         #expect(h.model.statusMessage
-            == "Couldn't turn on the TV. Turn on “Power On with Mobile” in the TV's network settings, then try again.")
+            == "Couldn't turn on the TV. On the TV, turn on “Power On with Mobile”: Settings → Connection → Network → "
+            + "Expert Settings → Power On with Mobile (on some TVs: Settings → General → Network → Expert Settings). "
+            + "Then turn the TV off and try again.")
     }
 
     @Test func powerFailureWithoutMulticastSuggestsTheTVRemote() async {
@@ -618,8 +651,9 @@ private let tvC = info("uuid:c", host: "192.168.1.12", name: "Alpha", model: "QE
         h.model.togglePower()
         await settle { !h.model.powerBusy }
         #expect(h.model.statusMessage
-            == "Couldn't turn on the TV. If it has been off for a while, turn it on with its own remote. "
-            + "Also check that “Power On with Mobile” is on in the TV's network settings.")
+            == "Couldn't turn on the TV. Check that “Power On with Mobile” is on: Settings → Connection → Network → "
+            + "Expert Settings → Power On with Mobile (on some TVs: Settings → General → Network → Expert Settings). "
+            + "If it is and the TV has been off for a long time, turn it on with its own remote.")
     }
 
     @Test func infoPlistMulticastFlagIsExpanded() {

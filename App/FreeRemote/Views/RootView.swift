@@ -73,6 +73,11 @@ struct RootView: View {
         } message: { _ in
             Text("This removes its name on your devices and its pairing. To use it again, you'll need to choose Allow on the TV.")
         }
+        .alert(AppModel.powerTipTitle, isPresented: powerTipPresented) {
+            Button("OK") { model.dismissPowerTip() }
+        } message: {
+            Text(AppModel.powerTipMessage)
+        }
         .onChange(of: sheet) { old, new in
             // Closing text entry (Done or a swipe) tells the TV, if it is still asking for text.
             if old == .text, new != .text, model.keyboardRequested { model.endText() }
@@ -110,6 +115,11 @@ struct RootView: View {
     private var forgetTitle: String {
         let name = model.tvs.first { $0.id == forgetting }?.title ?? "this TV"
         return "Forget \(name)?"
+    }
+
+    /// Not over a sheet: the tip waits until sheets close.
+    private var powerTipPresented: Binding<Bool> {
+        Binding(get: { model.powerTipTV != nil && sheet == nil }, set: { _ in }) // only OK dismisses it
     }
 
     private var forgetPresented: Binding<Bool> {

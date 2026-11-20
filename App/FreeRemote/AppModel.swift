@@ -33,13 +33,26 @@ enum PowerDirection: Equatable {
 final class AppModel {
     static let selectedTVKey = "selectedTV"
 
+    /// Where Samsung TVs keep the setting that lets the app turn them on (2022 and newer under
+    /// Connection; older models under General).
+    static let powerOnWithMobilePath =
+        "Settings → Connection → Network → Expert Settings → Power On with Mobile "
+        + "(on some TVs: Settings → General → Network → Expert Settings)"
     static let failedToWakeMessage =
-        "Couldn't turn on the TV. Turn on “Power On with Mobile” in the TV's network settings, then try again."
+        "Couldn't turn on the TV. On the TV, turn on “Power On with Mobile”: \(powerOnWithMobilePath). "
+        + "Then turn the TV off and try again."
     /// Without the multicast entitlement only a unicast wake packet can be sent, which a TV that has
-    /// been off for a while may not receive.
+    /// been off for a long time may not receive.
     static let failedToWakeUnicastOnlyMessage =
-        "Couldn't turn on the TV. If it has been off for a while, turn it on with its own remote. "
-        + "Also check that “Power On with Mobile” is on in the TV's network settings."
+        "Couldn't turn on the TV. Check that “Power On with Mobile” is on: \(powerOnWithMobilePath). "
+        + "If it is and the TV has been off for a long time, turn it on with its own remote."
+    /// Shown once per TV, after its first successful connection.
+    static let powerTipTitle = "Turn On “Power On with Mobile”"
+    static let powerTipMessage =
+        "To turn this TV on from your iPhone, the TV's “Power On with Mobile” setting must be on: "
+        + "\(powerOnWithMobilePath)."
+    /// TV ids that have already been shown the power tip.
+    static let powerTipShownKey = "powerTipShownTVs"
     static let unreachableMessage = "Couldn't reach the TV. If it's off, press Power to turn it on."
     static let approvalTimedOutMessage =
         "The TV didn't confirm the connection in time. Try again and choose Allow if your TV asks."
@@ -68,6 +81,8 @@ final class AppModel {
     private(set) var keyboardRequested = false
     /// A transient explanation for the user (why a press did nothing, why power failed, …).
     var statusMessage: String?
+    /// The TV to show the one-time "Power On with Mobile" tip for, or nil.
+    var powerTipTV: TVID?
 
     private var onWiFi = true
     private var localNetworkDenied = false
@@ -360,7 +375,10 @@ final class AppModel {
     private func sessionStateChanged(_ state: SessionState, on handle: SessionHandle) {
         guard handle === current else { return }
         sessionState = state
-        if state == .connected, let id = selectedID { turnedOffTVs.remove(id) }
+        if state == .connected, let id = selectedID {
+            turnedOffTVs.remove(id)
+            if !powerTipShown.contains(id.rawValue) { powerTipTV = id }
+        }
         switch state {
         case .connecting, .awaitingApproval, .connected, .failed(.denied), .failed(.identityChanged):
             // Progress makes older explanations stale; failure screens explain themselves.
@@ -653,6 +671,19 @@ final class AppModel {
         case .idle, .connecting, .awaitingApproval, .connected, .failed(.denied), .failed(.identityChanged):
             return "Connecting…"
         }
+    }
+
+    private var powerTipShown: [String] {
+        env.userDefaults.stringArray(forKey: Self.powerTipShownKey) ?? []
+    }
+
+    /// The user acknowledged the power tip; it is not shown again for that TV.
+    func dismissPowerTip() {
+        guard let id = powerTipTV else { return }
+        powerTipTV = nil
+        var shown = powerTipShown
+        if !shown.contains(id.rawValue) { shown.append(id.rawValue) }
+        env.userDefaults.set(shown, forKey: Self.powerTipShownKey)
     }
 
     /// The status line's explanation of each screen state other than `.ready`.

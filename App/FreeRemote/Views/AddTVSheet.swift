@@ -33,7 +33,7 @@ struct AddTVSheet: View {
                     if let error {
                         Text(error).foregroundStyle(.red)
                     } else {
-                        Text("The TV shows its IP address in its network settings.")
+                        Text("Turn the TV on first. It shows its IP address in its network settings.")
                     }
                 }
             }
