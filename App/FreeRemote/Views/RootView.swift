@@ -59,6 +59,8 @@ struct RootView: View {
         }
         .modifier(TVMenuOverlay(isOpen: $menuOpen, onDetails: { sheet = .details($0) }, onRename: rename,
                                 onForget: forget, onAddTV: addTV))
+        // The card the menu grew from may be gone (Wi-Fi lost, TV forgotten on another device).
+        .onChange(of: model.screen) { menuOpen = false }
         .sheet(item: $sheet) { sheet in
             switch sheet {
             case .rename(let id):
@@ -127,7 +129,7 @@ struct RootView: View {
 
     /// Not over a sheet: the tip waits until sheets close.
     private var powerTipPresented: Binding<Bool> {
-        Binding(get: { model.powerTipTV != nil && sheet == nil }, set: { _ in }) // only OK dismisses it
+        Binding(get: { model.powerTipTV != nil && sheet == nil && !menuOpen }, set: { _ in }) // only OK dismisses it
     }
 
     private var forgetPresented: Binding<Bool> {

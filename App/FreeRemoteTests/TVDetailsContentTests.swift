@@ -88,4 +88,12 @@ import Testing
         #expect(content.plainText.hasPrefix("TV\nName on TV: Test TV\nModel: QN00XX00XAFXZA"))
         #expect(content.plainText.contains("\n\nNetwork\nIP Address: 10.0.0.7"))
     }
+
+    @Test func copyAllLeavesOutHardwareAddresses() {
+        let content = TVDetailsContent(snapshot(info: fullInfo, live: true), locale: us)
+        #expect(value(content, "Wi-Fi MAC Address") != nil) // still shown and copyable one by one
+        #expect(!content.plainText.contains("02:00:00:00:00:01"))
+        #expect(!content.plainText.contains("02:00:00:00:00:99"))
+        #expect(content.plainText.contains("IP Address: 10.0.0.8"))
+    }
 }

@@ -237,6 +237,10 @@ final class AppModel {
     /// found. Joins a scan that is already running instead of restarting it.
     func scanAgain() {
         guard scanFeedback != .scanning else { return }
+        guard env.wifiInterface() != nil else {
+            refresh() // shows the no-Wi-Fi state; no progress to show
+            return
+        }
         clearScanFeedback()
         scanAgainBaseline = Set(registry.tvs.keys)
         scanFeedback = .scanning
@@ -773,12 +777,19 @@ final class AppModel {
     }
 
     /// Asks the TV for its current details, falling back to `details(for:)` when it does not answer
-    /// (or a different TV answers at its address).
+    /// (or a different TV answers at its address). A live answer also updates the TV's status, as a
+    /// scan would. Nil when the TV is not (or no longer) known.
     func liveDetails(for id: TVID) async -> TVDetailsSnapshot? {
         guard let known = registry.tvs[id] else { return nil }
-        guard onWiFi, let info = try? await env.fetcher.fetchInfo(host: known.lastHost), info.id == id else {
+        guard onWiFi, let info = try? await env.fetcher.fetchInfo(host: known.lastHost), info.id == id,
+              registry.tvs[id] != nil else {
             return details(for: id)
         }
+        seen[info.id] = info
+        if info.powerState == .on { turnedOffTVs.remove(info.id) }
+        registry.record(info, at: .now)
+        saveRegistry()
+        rebuildTVs()
         return snapshot(id, live: info)
     }
 

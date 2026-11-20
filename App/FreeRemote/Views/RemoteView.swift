@@ -27,17 +27,22 @@ struct RemoteView: View {
     }
 
     var body: some View {
-        // Scrolls only when it must (the largest text sizes), so presses are never delayed otherwise.
-        ViewThatFits(in: .vertical) {
-            content
-            ScrollView { content }
+        VStack(spacing: 0) {
+            // Outside the `ViewThatFits`, so there is exactly one card for the TV menu to grow from.
+            TVPicker()
+                .padding(.horizontal, 24)
+                .padding(.top, 12)
+            // Scrolls only when it must (the largest text sizes), so presses are never delayed otherwise.
+            ViewThatFits(in: .vertical) {
+                content
+                ScrollView { content }
+            }
         }
         .background(Color.remoteBackground.ignoresSafeArea())
     }
 
     private var content: some View {
         VStack(spacing: 16) {
-            TVPicker()
             Spacer(minLength: 4)
             topRow
             StatusView(text: model.statusText)

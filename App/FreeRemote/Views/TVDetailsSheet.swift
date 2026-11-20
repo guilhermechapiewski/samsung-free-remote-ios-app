@@ -30,7 +30,6 @@ struct TVDetailsSheet: View {
                                 LabeledContent(row.label) {
                                     Text(row.value)
                                         .multilineTextAlignment(.trailing)
-                                        .textSelection(.enabled)
                                 }
                                 .contextMenu {
                                     Button("Copy", systemImage: "doc.on.doc") { copy(row.value) }
@@ -38,8 +37,11 @@ struct TVDetailsSheet: View {
                             }
                         }
                     }
-                    if !checking, let footnote = content.footnote {
-                        Section { } footer: { Text(footnote) }
+                    Section { } footer: {
+                        VStack(alignment: .leading, spacing: 8) {
+                            if !checking, let footnote = content.footnote { Text(footnote) }
+                            Text("Touch and hold a value to copy it. " + TVDetailsContent.copyAllNote)
+                        }
                     }
                 } else if !checking {
                     ContentUnavailableView("TV Not Found", systemImage: "tv",
@@ -65,7 +67,7 @@ struct TVDetailsSheet: View {
         }
         .task {
             snapshot = model.details(for: id)
-            if let live = await model.liveDetails(for: id) { snapshot = live }
+            snapshot = await model.liveDetails(for: id) // nil if the TV was forgotten meanwhile
             checking = false
         }
     }

@@ -128,6 +128,31 @@ final class FlowUITests: XCTestCase {
     }
 
     @MainActor
+    func testMenuScrollsAtLargestTextSize() {
+        let app = launch(["-demo", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"])
+        XCTAssertTrue(app.buttons["TV picker"].waitForExistence(timeout: 10))
+        app.buttons["TV picker"].tap()
+        let feedback = app.buttons["Send Feedback or Report a Bug"]
+        XCTAssertTrue(feedback.waitForExistence(timeout: 5))
+        attachScreenshot(app, "menu-large-text")
+        let panel = app.scrollViews.firstMatch
+        for _ in 0..<6 where !feedback.isHittable { panel.swipeUp() }
+        XCTAssertTrue(feedback.isHittable, "the last row must be reachable by scrolling")
+        attachScreenshot(app, "menu-large-text-scrolled")
+    }
+
+    @MainActor
+    func testTappingOutsideClosesMenu() {
+        let app = launch()
+        waitForRemote(app)
+        app.buttons["TV picker"].tap()
+        XCTAssertTrue(app.buttons["Close menu"].waitForExistence(timeout: 5))
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.95)).tap()
+        XCTAssertFalse(app.buttons["Close menu"].waitForExistence(timeout: 2))
+        XCTAssertTrue(app.buttons["Volume up"].isHittable)
+    }
+
+    @MainActor
     func testScanAgainShowsProgressAndResult() {
         let app = launch()
         waitForRemote(app)

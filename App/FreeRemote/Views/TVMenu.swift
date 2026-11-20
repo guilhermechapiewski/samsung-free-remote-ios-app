@@ -9,6 +9,8 @@ enum AppLinks {
 extension EnvironmentValues {
     /// Opens the TV menu over the screen; set by `RootView`.
     @Entry var openTVMenu: (() -> Void)?
+    /// The TV menu is open (the TV card takes VoiceOver focus back when it closes).
+    @Entry var isTVMenuOpen = false
 }
 
 /// The TV card's bounds, so the open menu can grow out of it.
@@ -79,6 +81,7 @@ struct TVMenuPanel: View {
 
     @Environment(AppModel.self) private var model
     @Environment(\.openURL) private var openURL
+    @AccessibilityFocusState private var headerFocused: Bool
 
     private var selected: TVListItem? { model.tvs.first { $0.id == model.selectedID } }
     private var isScanning: Bool { model.scanFeedback == .scanning }
@@ -92,6 +95,7 @@ struct TVMenuPanel: View {
             .buttonStyle(MenuRowStyle())
             .accessibilityLabel("Close menu")
             .accessibilityValue(selected.map { "\($0.title), \($0.status.displayName)" } ?? "No TV selected")
+            .accessibilityFocused($headerFocused)
 
             ViewThatFits(in: .vertical) {
                 items
@@ -104,6 +108,7 @@ struct TVMenuPanel: View {
         .accessibilityElement(children: .contain)
         .accessibilityAddTraits(.isModal)
         .accessibilityAction(.escape, onClose)
+        .onAppear { headerFocused = true }
     }
 
     private var items: some View {
@@ -239,16 +244,22 @@ struct TVMenuOverlay: ViewModifier {
     func body(content: Content) -> some View {
         content
             .environment(\.openTVMenu, { withAnimation(.snappy(duration: 0.25)) { isOpen = true } })
+            .environment(\.isTVMenuOpen, isOpen)
             .overlayPreferenceValue(TVCardBoundsKey.self) { anchor in
                 GeometryReader { proxy in
-                    if isOpen, let anchor {
-                        let card = proxy[anchor]
-                        ZStack(alignment: .topLeading) {
+                    ZStack(alignment: .topLeading) {
+                        // Separate `if`s, so each part gets its own transition.
+                        if isOpen, anchor != nil {
                             Color.black.opacity(0.3)
                                 .ignoresSafeArea()
                                 .onTapGesture(perform: close)
                                 .accessibilityHidden(true)
                                 .transition(.opacity)
+                        }
+                        if isOpen, let anchor {
+                            let card = proxy[anchor]
+                            // A card scrolled partly off screen still opens the menu fully on screen.
+                            let top = max(card.minY, 0)
                             TVMenuPanel(
                                 onClose: close,
                                 onDetails: { id in close(); onDetails(id) },
@@ -257,12 +268,13 @@ struct TVMenuOverlay: ViewModifier {
                                 onAddTV: { close(); onAddTV() }
                             )
                             .frame(width: card.width)
-                            .frame(maxHeight: max(card.height, proxy.size.height - card.minY - 12), alignment: .top)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .offset(x: card.minX, y: card.minY)
+                            // A real height limit, so the panel scrolls when its rows don't fit.
+                            .frame(maxHeight: max(card.height, proxy.size.height - top - 12), alignment: .top)
+                            .offset(x: card.minX, y: top)
                             .transition(.scale(scale: 0.96, anchor: .top).combined(with: .opacity))
                         }
                     }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 }
             }
     }

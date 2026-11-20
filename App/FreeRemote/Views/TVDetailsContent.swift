@@ -6,6 +6,10 @@ struct TVDetailsContent: Equatable {
     struct Row: Equatable, Identifiable {
         let label: String
         let value: String
+        /// Left out of Copy All: hardware addresses can identify a home network (an access point's
+        /// BSSID can even be located with public Wi-Fi databases), and copied text tends to end up in
+        /// public bug reports.
+        var isPrivate = false
         var id: String { label }
     }
 
@@ -41,7 +45,7 @@ struct TVDetailsContent: Equatable {
             ("Connection", info.flatMap { Self.connection($0.networkType) }),
             ("Wi-Fi MAC Address", (info?.wifiMAC ?? snapshot.known.wifiMAC)?.description),
             ("Wi-Fi Access Point", wireless ? details?.accessPoint?.description : nil),
-        ])))
+        ], privateLabels: ["Wi-Fi MAC Address", "Wi-Fi Access Point"])))
 
         sections.append(Section(title: "Status", rows: Self.compact([
             ("Power", snapshot.status.displayName),
@@ -71,18 +75,22 @@ struct TVDetailsContent: Equatable {
         footnote = snapshot.isLive ? nil : Self.notLiveFootnote
     }
 
-    /// Every row as "Label: value" lines, for Copy All.
+    static let copyAllNote = "Copy All leaves out MAC addresses, which can identify your home network."
+
+    /// Every row except private ones as "Label: value" lines, for Copy All.
     var plainText: String {
-        sections.map { section in
-            ([section.title] + section.rows.map { "\($0.label): \($0.value)" }).joined(separator: "\n")
+        sections.compactMap { section in
+            let rows = section.rows.filter { !$0.isPrivate }
+            guard !rows.isEmpty else { return nil }
+            return ([section.title] + rows.map { "\($0.label): \($0.value)" }).joined(separator: "\n")
         }
         .joined(separator: "\n\n")
     }
 
-    private static func compact(_ pairs: [(String, String?)]) -> [Row] {
+    private static func compact(_ pairs: [(String, String?)], privateLabels: Set<String> = []) -> [Row] {
         pairs.compactMap { label, value in
             guard let value, !value.isEmpty else { return nil }
-            return Row(label: label, value: value)
+            return Row(label: label, value: value, isPrivate: privateLabels.contains(label))
         }
     }
 

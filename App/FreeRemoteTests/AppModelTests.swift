@@ -776,6 +776,44 @@ private let tvC = info("uuid:c", host: "192.168.1.12", name: "Alpha", model: "QE
         #expect(details.info == nil)
     }
 
+    @Test func liveDetailsUpdateTheTVsStatus() async throws {
+        let h = Harness(known: [tvA], fetchable: [tvA])
+        await h.appear()
+        h.discovery.finish() // the scan missed the TV
+        await drain()
+        #expect(h.model.tvs.first?.status == .unreachable)
+        let details = try #require(await h.model.liveDetails(for: tvA.id))
+        #expect(details.status == .on)
+        #expect(h.model.tvs.first?.status == .on)
+    }
+
+    @Test func liveDetailsOffWiFiDoNotAskTheTV() async throws {
+        let h = Harness(known: [tvA], fetchable: [tvA])
+        await h.appear()
+        h.discovery.finish()
+        await drain()
+        let before = h.fetcher.requested.withLock { $0.count }
+        h.wifi.isOn = false
+        h.model.rescan()
+        let details = try #require(await h.model.liveDetails(for: tvA.id))
+        #expect(!details.isLive)
+        #expect(h.fetcher.requested.withLock { $0.count } == before)
+    }
+
+    @Test func liveDetailsForATVForgottenMeanwhileIsNil() async {
+        let h = Harness(known: [tvA], fetchable: [tvA])
+        await h.appear()
+        h.discovery.finish()
+        await drain()
+        h.fetcher.gate.close()
+        let task = Task { await h.model.liveDetails(for: tvA.id) }
+        await settle { h.fetcher.gate.waiting == 1 }
+        h.model.forget(tvA.id)
+        h.fetcher.gate.open()
+        #expect(await task.value == nil)
+        #expect(h.model.tvs.isEmpty) // not resurrected by the late answer
+    }
+
     // MARK: Scan Again feedback
 
     @Test func automaticScansShowNoFeedback() async {

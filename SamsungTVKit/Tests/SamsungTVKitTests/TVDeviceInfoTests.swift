@@ -95,3 +95,18 @@ private func fixture(_ name: String) throws -> Data {
     #expect(TVDeviceDetails.modelYear(fromModelCode: "99_X") == nil) // out of range
     #expect(TVDeviceDetails.modelYear(fromModelCode: "1_X") == nil)
 }
+
+@Test func textFromTheTVIsCleanedAndCapped() throws {
+    let long = String(repeating: "A", count: 500)
+    let json = try #require(String(data: fixture("info-on"), encoding: .utf8))
+        .replacingOccurrences(of: #""modelName":"QN00XX00XAFXZA""#, with: "\"modelName\":\"\(long)\"")
+        .replacingOccurrences(of: #""networkType":"wireless""#, with: #""networkType":"  wire\u0000less\n ""#)
+        .replacingOccurrences(of: #""name":"65&quot; Test TV","networkType""#,
+                              with: #""name":"Den‮vt.exe","networkType""#)
+    let info = try TVDeviceInfo.decode(Data(json.utf8), host: "10.0.0.5")
+    #expect(info.modelName.count == TVDeviceInfo.maxTextLength)
+    #expect(info.networkType == "wireless")
+    #expect(info.name == "Denvt.exe") // the right-to-left override is dropped
+    #expect(TVDeviceInfo.text("  \t ") == nil)
+    #expect(TVDeviceInfo.text("Café ✓") == "Café ✓")
+}

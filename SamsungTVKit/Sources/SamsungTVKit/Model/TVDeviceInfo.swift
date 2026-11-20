@@ -119,11 +119,11 @@ public struct TVDeviceInfo: Equatable, Sendable {
         return TVDeviceInfo(
             id: TVID(rawValue: device.id),
             host: host,
-            name: HTMLEntities.decode(device.name ?? response.name ?? ""),
-            modelName: device.modelName ?? "",
-            modelCode: device.model ?? "",
+            name: text(HTMLEntities.decode(device.name ?? response.name ?? "")) ?? "",
+            modelName: text(device.modelName) ?? "",
+            modelCode: text(device.model) ?? "",
             wifiMAC: device.wifiMac.flatMap(MACAddress.init),
-            networkType: device.networkType ?? "",
+            networkType: text(device.networkType) ?? "",
             powerState: power,
             tokenAuthSupported: device.TokenAuthSupport == "true",
             details: TVDeviceDetails(
@@ -143,10 +143,23 @@ public struct TVDeviceInfo: Equatable, Sendable {
         )
     }
 
-    /// A trimmed, non-empty value, capped in length (the TV is not trusted to be brief).
-    private static func text(_ value: String?) -> String? {
-        guard let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty else { return nil }
-        return String(trimmed.prefix(100))
+    /// Longest text kept from the TV for any one field.
+    static let maxTextLength = 100
+
+    /// A display-safe value: control and formatting characters (such as bidi overrides, which could
+    /// make a name read misleadingly) removed, trimmed, capped at `maxTextLength`; nil when empty.
+    /// The TV is not trusted to be brief or well-formed.
+    static func text(_ value: String?) -> String? {
+        guard let value else { return nil }
+        let cleaned = String(String.UnicodeScalarView(value.unicodeScalars.filter { scalar in
+            switch scalar.properties.generalCategory {
+            case .control, .format, .lineSeparator, .paragraphSeparator: false
+            default: true
+            }
+        }))
+        let trimmed = cleaned.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return nil }
+        return String(trimmed.prefix(maxTextLength))
     }
 
     private static func flag(_ value: String?) -> Bool? {

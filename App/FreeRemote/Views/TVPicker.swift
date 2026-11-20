@@ -38,6 +38,8 @@ extension ScanFeedback {
 struct TVPicker: View {
     @Environment(AppModel.self) private var model
     @Environment(\.openTVMenu) private var openTVMenu
+    @Environment(\.isTVMenuOpen) private var isTVMenuOpen
+    @AccessibilityFocusState private var focused: Bool
 
     private var selected: TVListItem? { model.tvs.first { $0.id == model.selectedID } }
 
@@ -53,6 +55,10 @@ struct TVPicker: View {
         .accessibilityLabel("TV picker")
         .accessibilityValue(accessibilityValue)
         .accessibilityHint("Shows your TVs")
+        .accessibilityFocused($focused)
+        .onChange(of: isTVMenuOpen) { _, open in
+            if !open { focused = true } // VoiceOver returns to the card the menu came from
+        }
         .sensoryFeedback(trigger: model.scanFeedback) { _, new in
             switch new {
             case .scanning: .impact(weight: .light)
