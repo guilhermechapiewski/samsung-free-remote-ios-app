@@ -88,6 +88,17 @@ a haptic tap:
 - [ ] **Local Network denied:** in Settings > Privacy & Security > Local Network, turn TV Remote off; the
       app shows the permission state with a working link to Settings. Turn it back on: discovery works again.
 
+## TV menu and details
+
+- [ ] Tapping the TV card opens the menu panel in place (same card style), dimming the rest; tapping outside,
+      the header, or a VoiceOver escape (two-finger scrub) closes it.
+- [ ] Choosing a TV in the menu selects it and closes the menu; the selected TV has a checkmark.
+- [ ] Scan Again keeps the menu open; newly found TVs appear in the list.
+- [ ] **TV Details** with the TV on: shows "Checking the TV…" briefly, then model, year, IP, MAC, connection,
+      resolution, features, language and country; long-press a value → Copy; Copy All copies everything.
+- [ ] **TV Details** with the TV unplugged: shows the last known details and the "didn't answer" note.
+- [ ] "Send Feedback or Report a Bug" opens the project's GitHub issues page in the default browser.
+
 ## Names and sync
 
 - [ ] **Rename:** "Rename…" sets a label shown in the picker; the sheet explains renaming in the TV's settings.

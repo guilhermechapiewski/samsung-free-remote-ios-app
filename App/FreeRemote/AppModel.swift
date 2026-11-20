@@ -13,6 +13,21 @@ struct TVListItem: Identifiable, Equatable {
     var status: TVStatus
 }
 
+/// What the TV Details screen shows about one TV.
+struct TVDetailsSnapshot: Equatable {
+    let id: TVID
+    let title: String
+    let status: TVStatus
+    /// The app's own record of the TV.
+    let known: KnownTV
+    /// The TV's latest answer: just now when `isLive`, else from the last scan; nil when the TV has
+    /// not answered since the app started.
+    let info: TVDeviceInfo?
+    let isLive: Bool
+    /// This iPhone holds a pairing token for the TV.
+    let paired: Bool
+}
+
 enum TVStatus: Equatable {
     case on, asleep, unreachable, pairing
 }
@@ -748,6 +763,36 @@ final class AppModel {
         case .pairingDenied: "The TV blocked this iPhone"
         case .identityChanged: "The TV's security identity changed"
         }
+    }
+
+    // MARK: - TV details
+
+    /// What is known about a TV without asking it; nil for a TV the app does not know.
+    func details(for id: TVID) -> TVDetailsSnapshot? {
+        snapshot(id, live: nil)
+    }
+
+    /// Asks the TV for its current details, falling back to `details(for:)` when it does not answer
+    /// (or a different TV answers at its address).
+    func liveDetails(for id: TVID) async -> TVDetailsSnapshot? {
+        guard let known = registry.tvs[id] else { return nil }
+        guard onWiFi, let info = try? await env.fetcher.fetchInfo(host: known.lastHost), info.id == id else {
+            return details(for: id)
+        }
+        return snapshot(id, live: info)
+    }
+
+    private func snapshot(_ id: TVID, live: TVDeviceInfo?) -> TVDetailsSnapshot? {
+        guard let known = registry.tvs[id] else { return nil }
+        return TVDetailsSnapshot(
+            id: id,
+            title: env.labels.label(for: id) ?? known.reportedName,
+            status: status(of: id),
+            known: known,
+            info: live ?? seen[id],
+            isLive: live != nil,
+            paired: env.credentials.load(id)?.token != nil
+        )
     }
 
     private func rebuildTVs() {

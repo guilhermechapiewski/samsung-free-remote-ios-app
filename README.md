@@ -19,6 +19,9 @@ More screenshots: [`AppStore/screenshots/`](AppStore/screenshots/).
 - Hold-to-repeat for volume, channel and arrows
 - Remembers TVs between launches, including while they are asleep
 - Your own names for TVs, synced across your devices with iCloud
+- TV Details: model, model year, IP and MAC addresses, connection, resolution, supported features and more;
+  every value can be copied
+- Send feedback or report a bug from the TV menu (opens this project's GitHub issues)
 - One-time pairing per TV (choose "Allow" on the TV); haptics, VoiceOver labels, Dynamic Type, dark mode
 
 ## Requirements

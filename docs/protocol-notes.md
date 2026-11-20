@@ -7,6 +7,10 @@ confirmed on real hardware; see the checklist at the end.
 
 - `GET http://<host>:8001/api/v2/` — device info (JSON). Used for discovery, identity and power state.
   Only ever contacted for private (RFC 1918) or link-local IPv4 hosts. Responses are size-capped.
+  TV Details also shows its informational fields: `resolution`, `Language`, `countryCode`, `ssid` (the
+  access point's BSSID on the TVs seen so far; shown only when it is a MAC), the `*Support` feature flags,
+  `developerMode`, `firmwareVersion` (most TVs say "Unknown"; hidden then) and the top-level `version`.
+  The model year comes from the `model` code's two-digit prefix ("22_…" is 2022).
 - `wss://<host>:8002/api/v2/channels/samsung.remote.control?name=<base64 name>[&token=<token>]` — the
   remote-control channel. The pairing name sent is the constant `TV Remote` (base64 encoded).
   Port 8001 is never used for control.

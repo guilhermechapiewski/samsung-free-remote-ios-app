@@ -68,7 +68,7 @@ enum DemoEnvironment {
         let connectsTo: SessionState = scenario == .pairing ? .awaitingApproval : .connected
 
         let interface = IPv4Interface(name: "en0", address: 0x0A00_0002, netmask: 0xFFFF_FF00)
-        let fetcher = DemoFetcher()
+        let fetcher = DemoFetcher(infos: Dictionary(uniqueKeysWithValues: found.map { ($0.host, $0) }))
         let scans = DemoScanCounter()
         return AppEnvironment(
             makeDiscovery: { _ in
@@ -98,8 +98,12 @@ enum DemoEnvironment {
 
     private static func tv(_ id: TVID, _ name: String, model: String, host: String, mac: String,
                            power: TVPowerState = .on) -> TVDeviceInfo {
-        TVDeviceInfo(id: id, host: host, name: name, modelName: model, modelCode: "DEMO",
-                     wifiMAC: MACAddress(mac), networkType: "wireless", powerState: power, tokenAuthSupported: true)
+        TVDeviceInfo(id: id, host: host, name: name, modelName: model, modelCode: "25_DEMO_TV",
+                     wifiMAC: MACAddress(mac), networkType: "wireless", powerState: power, tokenAuthSupported: true,
+                     details: TVDeviceDetails(modelYear: 2025, resolution: "3840x2160", language: "en_US",
+                                              countryCode: "US", accessPoint: MACAddress("02:00:00:00:00:01"),
+                                              frameTV: false, voice: true, gamePad: true, keyboardSync: true,
+                                              developerMode: false, apiVersion: "2.0.25"))
     }
 }
 
@@ -186,8 +190,14 @@ private struct DemoPower: PowerToggling {
 }
 
 /// No TV answers at a typed-in address in demo mode.
+/// Answers for the demo TVs that are on the demo network.
 private struct DemoFetcher: TVInfoFetching {
-    func fetchInfo(host: String) async throws(TVInfoError) -> TVDeviceInfo { throw .unreachable }
+    let infos: [String: TVDeviceInfo]
+
+    func fetchInfo(host: String) async throws(TVInfoError) -> TVDeviceInfo {
+        guard let info = infos[host] else { throw .unreachable }
+        return info
+    }
 }
 
 private struct DemoCredentials: CredentialStore {

@@ -14,6 +14,60 @@ public enum TVInfoError: Error, Equatable {
     case notLocalAddress
 }
 
+/// Extra, informational facts a TV reports about itself. Every field is optional: models differ in
+/// what they report, and nothing here is needed to control the TV.
+public struct TVDeviceDetails: Equatable, Sendable {
+    /// Model year, from the model code's two-digit prefix ("22_…" is 2022).
+    public var modelYear: Int?
+    /// Panel resolution, such as "3840x2160".
+    public var resolution: String?
+    /// Menu language as a locale identifier, such as "en_US".
+    public var language: String?
+    /// Country the TV is set to, such as "US".
+    public var countryCode: String?
+    /// The Wi-Fi access point (BSSID) the TV is connected to, when the TV reports one.
+    public var accessPoint: MACAddress?
+    public var frameTV: Bool?
+    public var voice: Bool?
+    public var gamePad: Bool?
+    /// The TV can sync its on-screen keyboard with a phone.
+    public var keyboardSync: Bool?
+    public var developerMode: Bool?
+    /// Omitted when the TV says "Unknown" (most do).
+    public var firmwareVersion: String?
+    /// Version of the TV's remote-control API, such as "2.0.25".
+    public var apiVersion: String?
+
+    public init(
+        modelYear: Int? = nil, resolution: String? = nil, language: String? = nil, countryCode: String? = nil,
+        accessPoint: MACAddress? = nil, frameTV: Bool? = nil, voice: Bool? = nil, gamePad: Bool? = nil,
+        keyboardSync: Bool? = nil, developerMode: Bool? = nil, firmwareVersion: String? = nil,
+        apiVersion: String? = nil
+    ) {
+        self.modelYear = modelYear
+        self.resolution = resolution
+        self.language = language
+        self.countryCode = countryCode
+        self.accessPoint = accessPoint
+        self.frameTV = frameTV
+        self.voice = voice
+        self.gamePad = gamePad
+        self.keyboardSync = keyboardSync
+        self.developerMode = developerMode
+        self.firmwareVersion = firmwareVersion
+        self.apiVersion = apiVersion
+    }
+
+    /// The model year from a model code like "22_PONTUSM_FTV"; nil unless the code starts with two
+    /// digits and an underscore, for a year from 2015 to 2040.
+    public static func modelYear(fromModelCode code: String) -> Int? {
+        let parts = code.split(separator: "_", maxSplits: 1, omittingEmptySubsequences: false)
+        guard parts.count == 2, parts[0].count == 2, parts[0].allSatisfy(\.isASCII),
+              let short = Int(parts[0]), (15...40).contains(short) else { return nil }
+        return 2000 + short
+    }
+}
+
 /// Facts about a TV from `GET http://<host>:8001/api/v2/`.
 public struct TVDeviceInfo: Equatable, Sendable {
     public var id: TVID
@@ -25,11 +79,14 @@ public struct TVDeviceInfo: Equatable, Sendable {
     public var networkType: String
     public var powerState: TVPowerState
     public var tokenAuthSupported: Bool
+    public var details: TVDeviceDetails
 
     public init(
         id: TVID, host: String, name: String, modelName: String, modelCode: String,
-        wifiMAC: MACAddress?, networkType: String, powerState: TVPowerState, tokenAuthSupported: Bool
+        wifiMAC: MACAddress?, networkType: String, powerState: TVPowerState, tokenAuthSupported: Bool,
+        details: TVDeviceDetails = TVDeviceDetails()
     ) {
+        self.details = details
         self.id = id
         self.host = host
         self.name = name
@@ -68,12 +125,41 @@ public struct TVDeviceInfo: Equatable, Sendable {
             wifiMAC: device.wifiMac.flatMap(MACAddress.init),
             networkType: device.networkType ?? "",
             powerState: power,
-            tokenAuthSupported: device.TokenAuthSupport == "true"
+            tokenAuthSupported: device.TokenAuthSupport == "true",
+            details: TVDeviceDetails(
+                modelYear: device.model.flatMap(TVDeviceDetails.modelYear(fromModelCode:)),
+                resolution: text(device.resolution),
+                language: text(device.Language),
+                countryCode: text(device.countryCode),
+                accessPoint: device.ssid.flatMap(MACAddress.init),
+                frameTV: flag(device.FrameTVSupport),
+                voice: flag(device.VoiceSupport),
+                gamePad: flag(device.GamePadSupport),
+                keyboardSync: flag(device.ImeSyncedSupport),
+                developerMode: device.developerMode.flatMap { ["1": true, "0": false][$0] },
+                firmwareVersion: text(device.firmwareVersion).flatMap { $0.lowercased() == "unknown" ? nil : $0 },
+                apiVersion: text(response.version)
+            )
         )
+    }
+
+    /// A trimmed, non-empty value, capped in length (the TV is not trusted to be brief).
+    private static func text(_ value: String?) -> String? {
+        guard let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty else { return nil }
+        return String(trimmed.prefix(100))
+    }
+
+    private static func flag(_ value: String?) -> Bool? {
+        switch value {
+        case "true": true
+        case "false": false
+        default: nil
+        }
     }
 
     private struct Response: Decodable {
         let name: String?
+        let version: String?
         let device: Device
     }
 
@@ -89,5 +175,15 @@ public struct TVDeviceInfo: Equatable, Sendable {
         let networkType: String?
         let PowerState: String?
         let TokenAuthSupport: String?
+        let resolution: String?
+        let Language: String?
+        let countryCode: String?
+        let ssid: String?
+        let FrameTVSupport: String?
+        let VoiceSupport: String?
+        let GamePadSupport: String?
+        let ImeSyncedSupport: String?
+        let developerMode: String?
+        let firmwareVersion: String?
     }
 }

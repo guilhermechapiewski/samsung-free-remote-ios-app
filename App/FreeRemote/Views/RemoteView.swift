@@ -16,10 +16,7 @@ struct RemoteAvailability: Equatable {
 /// The remote screen (layout B, "classic remote"): TV picker, Power / Source / Mute, the D-pad, and
 /// the volume rocker, Back / Home / Play-Pause / 123, and the channel rocker.
 struct RemoteView: View {
-    /// Hooks for the TV management sheets and the number pad.
-    var onRename: ((TVID) -> Void)?
-    var onForget: ((TVID) -> Void)?
-    var onAddTV: (() -> Void)?
+    /// Opens the number pad.
     var onNumberPad: (() -> Void)?
 
     @Environment(AppModel.self) private var model
@@ -40,7 +37,7 @@ struct RemoteView: View {
 
     private var content: some View {
         VStack(spacing: 16) {
-            TVPicker(onRename: onRename, onForget: onForget, onAddTV: onAddTV)
+            TVPicker()
             Spacer(minLength: 4)
             topRow
             StatusView(text: model.statusText)

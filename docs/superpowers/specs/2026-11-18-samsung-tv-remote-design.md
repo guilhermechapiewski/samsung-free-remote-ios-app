@@ -331,6 +331,10 @@ Network permissions are needed), and an explicit **Requirements** section:
 - Scan Again feedback (owner, 2026-11-20): a user-started scan shows a spinner and "Looking for TVs…" on
   the TV card, then "Found N new TVs" / "No new TVs found" for 3 s, with light and success haptics and a
   VoiceOver announcement. A tap during a running scan joins it. Automatic scans stay silent.
+- TV menu, TV Details, feedback (owner, 2026-11-20): the TV card opens a custom panel in the card's style
+  (approach A, chosen over a bottom sheet) holding the TV list, TV Details, Rename, Forget, Add TV, Scan
+  Again and "Send Feedback or Report a Bug" (opens the GitHub issues page). TV Details asks the TV for
+  `/api/v2/` when opened and falls back to the last known values; every value can be copied.
 - ~~Release waits for multicast entitlement approval.~~ Revised 2026-11-19: ship 1.0 without it; add
   multicast in a later release once Apple approves (see §3).
 - Scope runs through submission-ready; owner presses Submit.

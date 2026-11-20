@@ -50,3 +50,48 @@ private func fixture(_ name: String) throws -> Data {
 @Test func rejectsGarbage() {
     #expect(throws: TVInfoError.malformed) { try TVDeviceInfo.decode(Data("<html>".utf8), host: "10.0.0.5") }
 }
+
+@Test func decodesDetails() throws {
+    let details = try TVDeviceInfo.decode(fixture("info-on"), host: "10.0.0.5").details
+    #expect(details.resolution == "3840x2160")
+    #expect(details.language == "en_US")
+    #expect(details.countryCode == "US")
+    #expect(details.accessPoint?.description == "02:00:00:00:00:99")
+    #expect(details.frameTV == false)
+    #expect(details.voice == true)
+    #expect(details.gamePad == true)
+    #expect(details.keyboardSync == true)
+    #expect(details.developerMode == false)
+    #expect(details.firmwareVersion == nil) // the TV says "Unknown"
+    #expect(details.apiVersion == "2.0.25")
+    #expect(details.modelYear == 2024)
+}
+
+@Test func detailsAreOptional() throws {
+    let json = #"{"device":{"id":"uuid:x","type":"Samsung SmartTV","OS":"Tizen"}}"#
+    let details = try TVDeviceInfo.decode(Data(json.utf8), host: "10.0.0.5").details
+    #expect(details == TVDeviceDetails())
+}
+
+@Test func detailsTrimAndRejectOddValues() throws {
+    let json = try #require(String(data: fixture("info-on"), encoding: .utf8))
+        .replacingOccurrences(of: #""firmwareVersion":"Unknown""#, with: #""firmwareVersion":" T-KSU2EAUC-1234.5 ""#)
+        .replacingOccurrences(of: #""developerMode":"0""#, with: #""developerMode":"1""#)
+        .replacingOccurrences(of: #""ssid":"02:00:00:00:00:99""#, with: #""ssid":"Home Wi-Fi""#)
+        .replacingOccurrences(of: #""FrameTVSupport":"false""#, with: #""FrameTVSupport":"maybe""#)
+    let details = try TVDeviceInfo.decode(Data(json.utf8), host: "10.0.0.5").details
+    #expect(details.firmwareVersion == "T-KSU2EAUC-1234.5")
+    #expect(details.developerMode == true)
+    #expect(details.accessPoint == nil) // only a MAC (BSSID) is shown
+    #expect(details.frameTV == nil)
+}
+
+@Test func modelYearFromModelCode() {
+    #expect(TVDeviceDetails.modelYear(fromModelCode: "22_PONTUSM_FTV") == 2022)
+    #expect(TVDeviceDetails.modelYear(fromModelCode: "16_JAZZM_UHD") == 2016)
+    #expect(TVDeviceDetails.modelYear(fromModelCode: "26_RSM_MTV") == 2026)
+    #expect(TVDeviceDetails.modelYear(fromModelCode: "") == nil)
+    #expect(TVDeviceDetails.modelYear(fromModelCode: "QN90B") == nil)
+    #expect(TVDeviceDetails.modelYear(fromModelCode: "99_X") == nil) // out of range
+    #expect(TVDeviceDetails.modelYear(fromModelCode: "1_X") == nil)
+}

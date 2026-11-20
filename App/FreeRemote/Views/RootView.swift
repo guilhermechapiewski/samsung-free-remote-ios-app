@@ -6,6 +6,7 @@ import SwiftUI
 struct RootView: View {
     enum Sheet: Identifiable, Equatable {
         case rename(TVID)
+        case details(TVID)
         case addTV
         case numberPad
         case text
@@ -13,6 +14,7 @@ struct RootView: View {
         var id: String {
             switch self {
             case .rename(let id): "rename:\(id.rawValue)"
+            case .details(let id): "details:\(id.rawValue)"
             case .addTV: "addTV"
             case .numberPad: "numberPad"
             case .text: "text"
@@ -23,6 +25,7 @@ struct RootView: View {
     @Environment(AppModel.self) private var model
     @State private var sheet: Sheet?
     @State private var forgetting: TVID?
+    @State private var menuOpen = false
     /// The TV asked for text while another sheet was open; show text entry once that closes.
     @State private var textQueued = false
 
@@ -49,15 +52,19 @@ struct RootView: View {
     var body: some View {
         Group {
             if model.screen == .ready {
-                RemoteView(onRename: rename, onForget: forget, onAddTV: addTV, onNumberPad: { sheet = .numberPad })
+                RemoteView(onNumberPad: { sheet = .numberPad })
             } else {
                 stateScreen
             }
         }
+        .modifier(TVMenuOverlay(isOpen: $menuOpen, onDetails: { sheet = .details($0) }, onRename: rename,
+                                onForget: forget, onAddTV: addTV))
         .sheet(item: $sheet) { sheet in
             switch sheet {
             case .rename(let id):
                 RenameSheet(currentTitle: model.tvs.first { $0.id == id }?.title ?? "") { model.rename(id, to: $0) }
+            case .details(let id):
+                TVDetailsSheet(id: id)
             case .addTV:
                 AddTVSheet()
             case .numberPad:
@@ -79,6 +86,7 @@ struct RootView: View {
             Text(AppModel.powerTipMessage)
         }
         .onChange(of: sheet) { old, new in
+            if new != nil { menuOpen = false } // e.g. the TV asked for text while the menu was open
             // Closing text entry (Done or a swipe) tells the TV, if it is still asking for text.
             if old == .text, new != .text, model.keyboardRequested { model.endText() }
             let next = Self.queuedTextAfterSheetChange(keyboardRequested: model.keyboardRequested, current: new,
@@ -96,7 +104,7 @@ struct RootView: View {
     private var stateScreen: some View {
         ScrollView {
             VStack(spacing: 20) {
-                TVPicker(onRename: rename, onForget: forget, onAddTV: addTV)
+                TVPicker()
                 StateCard(screen: model.screen, onAddTV: addTV)
                 if let message = model.statusMessage {
                     StatusView(text: message)

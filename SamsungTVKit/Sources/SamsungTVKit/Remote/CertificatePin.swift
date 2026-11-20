@@ -7,7 +7,7 @@ import Security
 public struct CertificatePin: Codable, Hashable, Sendable {
     public let sha256: Data
 
-    init(sha256: Data) {
+    public init(sha256: Data) {
         self.sha256 = sha256
     }
 

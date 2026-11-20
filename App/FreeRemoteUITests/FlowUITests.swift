@@ -136,13 +136,47 @@ final class FlowUITests: XCTestCase {
         let scanAgain = app.buttons["Scan Again"]
         XCTAssertTrue(scanAgain.waitForExistence(timeout: 5))
         scanAgain.tap()
-        XCTAssertTrue(picker.waitForValue(containing: "Looking for TVs…", timeout: 5))
-        XCTAssertTrue(picker.waitForValue(containing: "No new TVs found", timeout: 10))
+        // The menu stays open while scanning; its header shows the progress, then the result.
+        XCTAssertTrue(app.staticTexts["Looking for TVs…"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Scanning…"].exists)
+        XCTAssertTrue(app.staticTexts["No new TVs found"].waitForExistence(timeout: 10))
+        attachScreenshot(app, "scan-result")
+        app.buttons["Close menu"].tap()
+        XCTAssertTrue(picker.waitForValue(containing: "", excluding: "No new TVs found", timeout: 10))
+    }
+
+    @MainActor
+    func testTVDetailsShowsLiveDetails() {
+        let app = launch()
+        waitForRemote(app)
+        app.buttons["TV picker"].tap()
+        app.buttons["TV Details"].tap()
+        // Each row reads as one element: "label, value".
+        XCTAssertTrue(app.staticTexts["IP Address, 10.0.0.21"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Last Seen, Just now"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Resolution, 3840 × 2160 (4K)"].exists)
+        attachScreenshot(app, "tv-details")
+        app.buttons["Done"].tap()
+        XCTAssertTrue(app.buttons["TV picker"].waitForExistence(timeout: 5))
+    }
+
+    @MainActor
+    func testMenuSelectsAnotherTVAndCloses() {
+        let app = launch()
+        waitForRemote(app)
+        app.buttons["TV picker"].tap()
+        XCTAssertTrue(app.buttons["Send Feedback or Report a Bug"].waitForExistence(timeout: 5))
+        attachScreenshot(app, "menu")
+        app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Bedroom'")).firstMatch.tap()
+        XCTAssertFalse(app.buttons["Close menu"].waitForExistence(timeout: 2))
+        XCTAssertTrue(app.buttons["TV picker"].waitForValue(containing: "Bedroom", timeout: 5))
+    }
+
+    private func attachScreenshot(_ app: XCUIApplication, _ name: String) {
         let attachment = XCTAttachment(screenshot: app.screenshot())
-        attachment.name = "scan-result"
+        attachment.name = name
         attachment.lifetime = .keepAlways
         add(attachment)
-        XCTAssertTrue(picker.waitForValue(containing: "", excluding: "No new TVs found", timeout: 10))
     }
 
     @MainActor

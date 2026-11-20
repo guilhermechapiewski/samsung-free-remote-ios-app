@@ -160,7 +160,11 @@ private final class FakeSessions: Sendable {
 
 private final class FakeCredentials: CredentialStore {
     let deleted = Mutex<[TVID]>([])
-    func load(_ id: TVID) -> TVCredentials? { nil }
+    /// TVs that have a pairing token.
+    let paired = Mutex<Set<TVID>>([])
+    func load(_ id: TVID) -> TVCredentials? {
+        paired.withLock { $0.contains(id) } ? TVCredentials(token: "t", pin: CertificatePin(sha256: Data())) : nil
+    }
     func save(_ c: TVCredentials, for id: TVID) throws {}
     func delete(_ id: TVID) { deleted.withLock { $0.append(id) } }
 }
@@ -719,6 +723,57 @@ private let tvC = info("uuid:c", host: "192.168.1.12", name: "Alpha", model: "QE
         first.emit(.failed(.denied))
         await drain()
         #expect(h.model.screen == .ready)
+    }
+
+    // MARK: TV details
+
+    @Test func detailsUnknownTVIsNil() async {
+        let h = Harness(known: [tvA])
+        await h.appear()
+        #expect(h.model.details(for: tvB.id) == nil)
+        #expect(await h.model.liveDetails(for: tvB.id) == nil)
+    }
+
+    @Test func detailsFromRecordsBeforeTheTVAnswers() async throws {
+        let h = Harness(known: [tvA], selected: tvA.id)
+        await h.appear()
+        let details = try #require(h.model.details(for: tvA.id))
+        #expect(details.known.lastHost == tvA.host)
+        #expect(details.info == nil) // not seen by a scan yet
+        #expect(!details.isLive)
+        #expect(!details.paired)
+    }
+
+    @Test func liveDetailsAskTheTV() async throws {
+        var fresh = tvA
+        fresh.details.resolution = "3840x2160"
+        let h = Harness(known: [tvA], fetchable: [fresh])
+        h.credentials.paired.withLock { _ = $0.insert(tvA.id) }
+        await h.appear()
+        let details = try #require(await h.model.liveDetails(for: tvA.id))
+        #expect(details.isLive)
+        #expect(details.info?.details.resolution == "3840x2160")
+        #expect(details.paired)
+        #expect(h.fetcher.requested.withLock { $0 }.contains(tvA.host))
+    }
+
+    @Test func liveDetailsFallBackWhenTheTVDoesNotAnswer() async throws {
+        let h = Harness(known: [tvA])
+        await h.appear()
+        h.discovery.yield(.found(tvA))
+        await settle { h.model.tvs.first?.status == .on }
+        let details = try #require(await h.model.liveDetails(for: tvA.id))
+        #expect(!details.isLive)
+        #expect(details.info == tvA) // from the scan
+    }
+
+    @Test func liveDetailsIgnoreADifferentTVAtTheAddress() async throws {
+        let impostor = info("uuid:other", host: tvA.host, name: "Other")
+        let h = Harness(known: [tvA], fetchable: [impostor])
+        await h.appear()
+        let details = try #require(await h.model.liveDetails(for: tvA.id))
+        #expect(!details.isLive)
+        #expect(details.info == nil)
     }
 
     // MARK: Scan Again feedback
