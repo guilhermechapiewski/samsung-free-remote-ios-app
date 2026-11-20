@@ -4,6 +4,8 @@ import SwiftUI
 enum AppLinks {
     /// Where users send feedback and report bugs.
     static let issues = URL(string: "https://github.com/guilhermechapiewski/samsung-free-remote-ios-app/issues")!
+    /// The app's privacy policy (App Review 5.1.1(i) requires it to be reachable in the app).
+    static let privacyPolicy = URL(string: "https://guilhermechapiewski.github.io/samsung-free-remote-ios-app/privacy/")!
 }
 
 /// Opens the TV menu over the screen. Equatable so SwiftUI can tell it has not changed (a bare closure
@@ -163,6 +165,10 @@ struct TVMenuPanel: View {
                 trailing: "arrow.up.right") {
                 onClose()
                 openURL(AppLinks.issues)
+            }
+            row("Privacy Policy", systemImage: "hand.raised", trailing: "arrow.up.right") {
+                onClose()
+                openURL(AppLinks.privacyPolicy)
             }
         }
     }

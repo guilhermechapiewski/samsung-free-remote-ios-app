@@ -86,6 +86,7 @@ final class FlowUITests: XCTestCase {
 
         openMenu(app)
         XCTAssertTrue(app.buttons["Feedback & Bug Reports"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Privacy Policy"].exists) // required in the app by App Review 5.1.1(i)
         attachScreenshot(app, "menu")
         app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.95)).tap()
         XCTAssertTrue(close.waitForNonExistence(timeout: 5))
@@ -180,12 +181,12 @@ final class FlowUITests: XCTestCase {
         let app = launch(["-demo", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"])
         XCTAssertTrue(app.buttons["TV picker"].waitForExistence(timeout: 10))
         openMenu(app)
-        let feedback = app.buttons["Feedback & Bug Reports"]
-        XCTAssertTrue(feedback.waitForExistence(timeout: 5))
+        let lastRow = app.buttons["Privacy Policy"]
+        XCTAssertTrue(lastRow.waitForExistence(timeout: 5))
         attachScreenshot(app, "menu-large-text")
         let panel = app.scrollViews.firstMatch
-        for _ in 0..<6 where !feedback.isHittable { panel.swipeUp() }
-        XCTAssertTrue(feedback.isHittable, "the last row must be reachable by scrolling")
+        for _ in 0..<6 where !lastRow.isHittable { panel.swipeUp() }
+        XCTAssertTrue(lastRow.isHittable, "the last row must be reachable by scrolling")
         attachScreenshot(app, "menu-large-text-scrolled")
     }
 
