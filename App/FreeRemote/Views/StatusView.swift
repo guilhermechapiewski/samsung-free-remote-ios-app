@@ -35,7 +35,7 @@ struct StateCard: View {
         switch screen {
         case .ready: nil
         case .noWiFi: "Connect to Wi-Fi to control your TV."
-        case .localNetworkDenied: "Free Remote needs Local Network access to find your TV."
+        case .localNetworkDenied: "TV Remote needs Local Network access to find your TV."
         case .searching: "Looking for TVs…"
         case .noTVs: "No TVs found. Turn your TV on and make sure your iPhone and TV are on the same Wi-Fi network."
         case .chooseTV: "Choose your TV"

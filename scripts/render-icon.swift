@@ -1,4 +1,5 @@
-// Renders the app icon (original artwork: a minimalist remote-control silhouette) as 1024x1024 PNGs
+// Renders the app icon (original artwork: a TV screen with a remote control in front of it, on a deep
+// cobalt blue that evokes Samsung TVs without using any Samsung logo or wordmark) as 1024x1024 PNGs
 // for the light, dark and tinted appearances into the AppIcon asset catalog.
 // Usage: swift scripts/render-icon.swift
 import CoreGraphics
@@ -21,6 +22,9 @@ struct Palette {
     var centre: CGColor
     var power: CGColor
     var buttons: CGColor
+    var tvFrame: CGColor
+    var tvScreenTop: CGColor
+    var tvScreenBottom: CGColor
 }
 
 func rgb(_ hex: UInt32, alpha: CGFloat = 1) -> CGColor {
@@ -38,19 +42,22 @@ func gray(_ white: CGFloat, alpha: CGFloat = 1) -> CGColor {
 
 let palettes: [(file: String, palette: Palette)] = [
     ("AppIcon-Light.png", Palette(
-        backgroundTop: rgb(0x2F6BFF), backgroundBottom: rgb(0x1A2F8F),
+        backgroundTop: rgb(0x2341C8), backgroundBottom: rgb(0x0E1B70),
         body: rgb(0xFFFFFF), bodyShade: rgb(0xE4E9F5),
-        ring: rgb(0x1E3A9E), centre: rgb(0x2F6BFF), power: rgb(0xFF4B3E), buttons: rgb(0x9AA6C4)
+        ring: rgb(0x1428A0), centre: rgb(0x2F55E8), power: rgb(0xFF4B3E), buttons: rgb(0x9AA6C4),
+        tvFrame: rgb(0x0A1250), tvScreenTop: rgb(0x5C82FF), tvScreenBottom: rgb(0x2341C8)
     )),
     ("AppIcon-Dark.png", Palette(
         backgroundTop: rgb(0x1C1F2A), backgroundBottom: rgb(0x07080C),
         body: rgb(0x2C3142), bodyShade: rgb(0x232736),
-        ring: rgb(0x6F95FF), centre: rgb(0x4C7DFF), power: rgb(0xFF5A4E), buttons: rgb(0x59617A)
+        ring: rgb(0x6F95FF), centre: rgb(0x4C7DFF), power: rgb(0xFF5A4E), buttons: rgb(0x59617A),
+        tvFrame: rgb(0x000000), tvScreenTop: rgb(0x2341C8), tvScreenBottom: rgb(0x0E1B70)
     )),
     ("AppIcon-Tinted.png", Palette(
         backgroundTop: gray(0), backgroundBottom: gray(0),
         body: gray(0.92), bodyShade: gray(0.80),
-        ring: gray(0.30), centre: gray(0.55), power: gray(0.45), buttons: gray(0.55)
+        ring: gray(0.30), centre: gray(0.55), power: gray(0.45), buttons: gray(0.55),
+        tvFrame: gray(0.20), tvScreenTop: gray(0.62), tvScreenBottom: gray(0.40)
     )),
 ]
 
@@ -68,10 +75,35 @@ func render(_ palette: Palette) -> CGImage {
     )!
     context.drawLinearGradient(gradient, start: CGPoint(x: 0, y: s), end: CGPoint(x: 0, y: 0), options: [])
 
-    // Remote body: a tall rounded rectangle, slightly tilted for character.
+    // TV: a wide screen with a thin bezel and a small stand, upper left, behind the remote.
     // Core Graphics origin is bottom-left; y values below are measured from the bottom.
+    let tv = CGRect(x: 110, y: 430, width: 640, height: 400)
     context.saveGState()
-    context.translateBy(x: s / 2, y: s / 2)
+    context.setShadow(offset: CGSize(width: 0, height: -14), blur: 36, color: gray(0, alpha: 0.35))
+    context.addPath(CGPath(roundedRect: tv, cornerWidth: 44, cornerHeight: 44, transform: nil))
+    context.setFillColor(palette.tvFrame)
+    context.fillPath()
+    context.restoreGState()
+    context.saveGState()
+    let screen = tv.insetBy(dx: 26, dy: 26)
+    context.addPath(CGPath(roundedRect: screen, cornerWidth: 22, cornerHeight: 22, transform: nil))
+    context.clip()
+    let screenGradient = CGGradient(
+        colorsSpace: space, colors: [palette.tvScreenTop, palette.tvScreenBottom] as CFArray, locations: [0, 1]
+    )!
+    context.drawLinearGradient(screenGradient, start: CGPoint(x: screen.minX, y: screen.maxY),
+                               end: CGPoint(x: screen.maxX, y: screen.minY), options: [])
+    context.restoreGState()
+    context.setFillColor(palette.tvFrame)
+    context.fill(CGRect(x: tv.midX - 18, y: tv.minY - 70, width: 36, height: 70))
+    context.addPath(CGPath(roundedRect: CGRect(x: tv.midX - 130, y: tv.minY - 92, width: 260, height: 30),
+                           cornerWidth: 15, cornerHeight: 15, transform: nil))
+    context.fillPath()
+
+    // Remote body: a tall rounded rectangle, slightly tilted for character, in front of the TV.
+    context.saveGState()
+    context.translateBy(x: s * 0.66, y: s * 0.40)
+    context.scaleBy(x: 0.72, y: 0.72)
     context.rotate(by: -12 * .pi / 180)
     let bodyWidth: CGFloat = 360, bodyHeight: CGFloat = 760
     let body = CGRect(x: -bodyWidth / 2, y: -bodyHeight / 2, width: bodyWidth, height: bodyHeight)

@@ -324,6 +324,10 @@ Network permissions are needed), and an explicit **Requirements** section:
 - iPhone only; iOS 27 only.
 - Remote layout B (classic), no changes.
 - App name: **Free Remote for Samsung TV**.
+- Home-screen name (`CFBundleDisplayName`): **TV Remote** (owner, 2026-11-20). The App Store name stays
+  "Free Remote for Samsung TV"; the pairing name sent to TVs stays "Free Remote".
+- Icon: original artwork (TV and remote) on a Samsung-style cobalt blue. Never Samsung's logo or wordmark
+  (App Review 5.2.1/5.2.2), unless Samsung grants written permission.
 - ~~Release waits for multicast entitlement approval.~~ Revised 2026-11-19: ship 1.0 without it; add
   multicast in a later release once Apple approves (see §3).
 - Scope runs through submission-ready; owner presses Submit.

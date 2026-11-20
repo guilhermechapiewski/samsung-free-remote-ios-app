@@ -91,7 +91,7 @@ import SamsungTVKit
     @Test func stateCardCopyIsExact() {
         #expect(StateCard.message(for: .noWiFi) == "Connect to Wi-Fi to control your TV.")
         #expect(StateCard.message(for: .localNetworkDenied)
-            == "Free Remote needs Local Network access to find your TV.")
+            == "TV Remote needs Local Network access to find your TV.")
         #expect(StateCard.message(for: .searching) == "Looking for TVs…")
         #expect(StateCard.message(for: .noTVs)
             == "No TVs found. Turn your TV on and make sure your iPhone and TV are on the same Wi-Fi network.")
