@@ -589,7 +589,7 @@
 			buildSettings = {
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = App/SamsungRemoteControls/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = "TV Remote";
+				INFOPLIST_KEY_CFBundleDisplayName = "Simple TV Remote for Samsung";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -608,7 +608,7 @@
 			buildSettings = {
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = App/SamsungRemoteControls/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = "TV Remote";
+				INFOPLIST_KEY_CFBundleDisplayName = "Simple TV Remote for Samsung";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",

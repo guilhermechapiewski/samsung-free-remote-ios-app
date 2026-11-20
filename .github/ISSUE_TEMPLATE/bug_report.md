@@ -21,7 +21,7 @@ labels: bug
 
 **Your setup**
 
-- App version (Settings > General > iPhone Storage > TV Remote, or the App Store page):
+- App version (Settings > General > iPhone Storage > Simple TV Remote for Samsung, or the App Store page):
 - iPhone model and iOS version:
 - TV model year and series (for example "2023, Q60 series"):
 - TV software (Tizen) version, if you know it (TV Settings > Support > About This TV):
