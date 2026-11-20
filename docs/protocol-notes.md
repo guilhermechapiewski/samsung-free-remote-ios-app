@@ -15,7 +15,7 @@ confirmed on real hardware; see the checklist at the end.
   (not while pairing). While connected: `standby` means the TV was turned off with its own remote (in network
   standby the WebSocket can stay open), so it is shown as off with only Power usable; two missed answers in
   a row mean it lost power, so the connection is replaced (the transport's 15 s ping would take 15-30 s to
-  notice). While not connected: When the TV answers `PowerState: on`, a
+  notice). While not connected, when the TV answers `PowerState: on`, a
   failed session reconnects, and a retry stuck waiting out its backoff (still connecting after 4 checks)
   starts over at once; so a TV that boots late or is turned on with its own remote connects within seconds.
   A `standby` answer only marks the TV asleep; no answer while retrying shows "Couldn't reach the TV"
