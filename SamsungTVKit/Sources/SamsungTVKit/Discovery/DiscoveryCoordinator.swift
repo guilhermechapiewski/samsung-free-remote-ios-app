@@ -39,6 +39,14 @@ public actor DiscoveryCoordinator {
         }
     }
 
+    /// TVs already reported in this scan. A class (not a local `Mutex`) so fetch tasks can share it:
+    /// older compilers reject capturing a noncopyable local in a `sending` task closure.
+    private final class ReportedIDs: Sendable {
+        private let ids = Mutex<Set<TVID>>([])
+        /// True the first time `id` is inserted.
+        func insert(_ id: TVID) -> Bool { ids.withLock { $0.insert(id).inserted } }
+    }
+
     private enum ChildResult: Sendable {
         case sourcesFinished
         case fetchFinished
@@ -47,7 +55,7 @@ public actor DiscoveryCoordinator {
     private static func run(sources: [any CandidateSource], fetcher: any TVInfoFetching, knownHosts: [String],
                             output: AsyncStream<DiscoveryEvent>.Continuation) async {
         let (merged, mergedContinuation) = AsyncStream.makeStream(of: CandidateEvent.self)
-        let reportedIDs = Mutex<Set<TVID>>([])
+        let reportedIDs = ReportedIDs()
         var requestedHosts: Set<String> = []
         var reportedDenial = false
         var inFlight = 0
@@ -74,7 +82,7 @@ public actor DiscoveryCoordinator {
                 group.addTask {
                     do {
                         let info = try await fetcher.fetchInfo(host: host)
-                        if reportedIDs.withLock({ $0.insert(info.id).inserted }) { output.yield(.found(info)) }
+                        if reportedIDs.insert(info.id) { output.yield(.found(info)) }
                     } catch {
                         log.debug("Fetch failed for \(host, privacy: .private): \(String(describing: error), privacy: .public)")
                     }
