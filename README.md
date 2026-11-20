@@ -55,7 +55,9 @@ You need macOS with **Xcode 27.2 or later** and the iOS 27.0 simulator runtime.
    use demo mode (launch argument `-demo`, fictional TVs) to try the app without a TV.
 
 To run it on your own iPhone, copy `Config/Local.example.xcconfig` to `Config/Local.xcconfig` (git-ignored)
-and set your `DEVELOPMENT_TEAM` and a bundle identifier of your own. The app uses iCloud key-value storage
+and set your `DEVELOPMENT_TEAM` and a bundle identifier of your own. Do this instead of picking a team in
+Xcode's Signing & Capabilities, which writes the team into the project file; the build stops if it finds one
+there. The app uses iCloud key-value storage
 for TV names, which needs a paid Apple Developer Program membership (free personal teams cannot sign it).
 
 Leave `FREE_REMOTE_MULTICAST` off. It switches to SSDP discovery and broadcast Wake-on-LAN, which need a
