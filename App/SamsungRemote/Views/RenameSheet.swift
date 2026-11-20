@@ -3,8 +3,9 @@ import SwiftUI
 /// Edits the TV's label on this user's devices; an empty name goes back to the TV's own name.
 struct RenameSheet: View {
     static let note =
-        "This name is only on your devices. To change the name everyone sees, rename the TV in its "
-        + "Settings → General → Device Name."
+        // Not a menu path: it differs by model year (2025 TVs: Support → About This TV → Edit Name).
+        "This name is only on your devices. To change the name everyone sees, change Device Name in the "
+        + "TV's own settings (where it is depends on the model)."
 
     let onSave: (String) -> Void
 

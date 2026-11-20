@@ -104,8 +104,8 @@ import SamsungTVKit
             == "This TV's security identity changed (this can happen after a software update). "
             + "Pair again to continue.")
         #expect(RenameSheet.note
-            == "This name is only on your devices. To change the name everyone sees, rename the TV in its "
-            + "Settings → General → Device Name.")
+            == "This name is only on your devices. To change the name everyone sees, change Device Name in the "
+            + "TV's own settings (where it is depends on the model).")
         #expect(AddTVSheet.invalidAddressMessage == "Enter a local IP address like 192.168.0.20.")
     }
 
