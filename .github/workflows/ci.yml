@@ -35,11 +35,15 @@ jobs:
       - name: Pick newest iPhone simulator
         run: |
           UDID=$(xcrun simctl list devices available -j | python3 -c '
-          import json, sys
+          import json, re, sys
           runtimes = json.load(sys.stdin)["devices"]
-          ios = sorted((k for k in runtimes if ".iOS-" in k),
-                       key=lambda k: [int(p) for p in k.rsplit(".iOS-", 1)[1].split("-")])
+          # Runtime keys look like com.apple.CoreSimulator.SimRuntime.iOS-27-0, sometimes with a suffix.
+          def version(k):
+              m = re.search(r"\.iOS-(\d+)-(\d+)", k)
+              return (int(m[1]), int(m[2])) if m else None
+          ios = sorted((k for k in runtimes if version(k)), key=version)
           print(next(d["udid"] for k in reversed(ios) for d in runtimes[k] if d["name"].startswith("iPhone")))')
+          echo "Simulator: $UDID"
           echo "SIM_UDID=$UDID" >> "$GITHUB_ENV"
       # Simulator builds are ad-hoc signed without a team; CODE_SIGNING_ALLOWED=NO would strip the
       # entitlements the keychain needs, so it is only used for the device build above.
