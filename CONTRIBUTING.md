@@ -37,8 +37,9 @@ a placeholder.
    Use Swift Testing (`import Testing`, `@Test`, `#expect`). Put protocol and networking logic in
    `SamsungTVKit` with unit tests; keep the app layer thin.
 3. Run all tests (below) and make sure the output is clean.
-4. If behaviour on real TVs changed, update `docs/protocol-notes.md`, and the README and
-   `AppStore/listing.md` if user-facing features or requirements changed.
+4. If behaviour on real TVs changed, update `docs/protocol-notes.md`. Update the README and mention it in
+   the pull request if user-facing features or requirements changed (the maintainer keeps the
+   App Store listing in sync).
 5. Open a pull request describing what changed, why, and how you tested it (including TV model years if you
    tested on hardware).
 
