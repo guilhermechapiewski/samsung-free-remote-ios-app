@@ -8,3 +8,6 @@ Config/Local.xcconfig
 # Xcode regenerates the project's embedded workspace; nothing in it is needed (no package dependencies).
 SamsungRemote.xcodeproj/project.xcworkspace/
 build/
+# Xcode Cloud links the project to the owner's App Store Connect account here; the project does not use
+# Xcode Cloud (CI is GitHub Actions), and the ids are account-specific.
+SamsungRemote.xcodeproj/xcshareddata/xcodecloud/
