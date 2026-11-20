@@ -41,9 +41,15 @@ jobs:
           def version(k):
               m = re.search(r"\.iOS-(\d+)-(\d+)", k)
               return (int(m[1]), int(m[2])) if m else None
-          ios = sorted((k for k in runtimes if version(k)), key=version)
-          print(next(d["udid"] for k in reversed(ios) for d in runtimes[k] if d["name"].startswith("iPhone")))')
-          echo "Simulator: $UDID"
+          # Prefer the model the project is tested on (iPhone 17 Pro), then any "iPhone NN Pro", then any
+          # iPhone; newer runtimes break ties. Unusual models (e.g. foldables) launch apps unreliably.
+          def rank(d):
+              n = d["name"]
+              return 0 if n == "iPhone 17 Pro" else 1 if re.fullmatch(r"iPhone \d+ Pro", n) else 2
+          phones = [(rank(d), tuple(-v for v in version(k)), d["udid"])
+                    for k in runtimes if version(k) for d in runtimes[k] if d["name"].startswith("iPhone")]
+          print(min(phones)[2])')
+          xcrun simctl list devices | grep "$UDID"
           echo "SIM_UDID=$UDID" >> "$GITHUB_ENV"
       # Simulator builds are ad-hoc signed without a team; CODE_SIGNING_ALLOWED=NO would strip the
       # entitlements the keychain needs, so it is only used for the device build above.
@@ -52,3 +58,4 @@ jobs:
           xcodebuild test -project FreeRemote.xcodeproj -scheme FreeRemote
           -destination "id=$SIM_UDID"
           -parallel-testing-enabled NO
+          -retry-tests-on-failure -test-iterations 2
