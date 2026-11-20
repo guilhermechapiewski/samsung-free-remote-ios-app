@@ -49,12 +49,11 @@ xcodebuild test -project FreeRemote.xcodeproj -scheme FreeRemote \
 `FREE_REMOTE_MULTICAST` (`YES`/`NO`, default `NO`, set in `Config/Local.xcconfig`) selects the entitlements
 file and tells the app (Info.plist `FRMulticastEnabled`) whether SSDP discovery and broadcast Wake-on-LAN are
 available. Never set `FREE_REMOTE_ENTITLEMENTS` directly; the "Check entitlements" build phase fails the build
-if the two disagree. Without the entitlement the app uses Bonjour discovery and a unicast wake packet, and the
-App Store copy says so. See `docs/protocol-notes.md`.
+if the two disagree. Without the entitlement the app uses Bonjour discovery and a unicast wake packet. Leave it `NO`;
+only the maintainer's builds can use `YES`. See `docs/protocol-notes.md`.
 
 ## When behaviour changes
 
 Update `docs/protocol-notes.md` for real-TV protocol findings, and `README.md` when user-facing features or
-requirements change. The App Store listing and review notes are kept privately by the maintainer; if you
-change features or requirements, say so in your summary so the listing can be updated too. App Store copy must
-be honest about what the current build can do and must not promise future features.
+requirements change; say so in your summary. Releases, store listings and anything else about publishing are
+handled privately by the maintainer: keep them out of this repository.

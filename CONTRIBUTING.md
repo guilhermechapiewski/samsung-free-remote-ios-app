@@ -1,7 +1,14 @@
 # Contributing
 
-Thanks for helping improve Free Remote for Samsung TV. Bug reports, TV compatibility reports and pull requests
-are all welcome.
+Thanks for helping improve Free Remote for Samsung TV. Bug reports, TV compatibility reports, ideas and pull
+requests are all welcome.
+
+## How the project works
+
+The maintainer publishes the app on the App Store, reviews every pull request, and decides what goes into
+each release. You don't need an Apple Developer account, signing setup or anything release-related to
+contribute: the simulator and demo mode (launch argument `-demo`) cover most work, and a real TV helps for
+protocol changes. See "Building" in the [README](README.md) to run the app on your own iPhone.
 
 ## Ground rules
 
@@ -37,9 +44,8 @@ a placeholder.
    Use Swift Testing (`import Testing`, `@Test`, `#expect`). Put protocol and networking logic in
    `SamsungTVKit` with unit tests; keep the app layer thin.
 3. Run all tests (below) and make sure the output is clean.
-4. If behaviour on real TVs changed, update `docs/protocol-notes.md`. Update the README and mention it in
-   the pull request if user-facing features or requirements changed (the maintainer keeps the
-   App Store listing in sync).
+4. If behaviour on real TVs changed, update `docs/protocol-notes.md`. If user-facing features or requirements
+   changed, update the README and say so in the pull request.
 5. Open a pull request describing what changed, why, and how you tested it (including TV model years if you
    tested on hardware).
 
@@ -53,7 +59,8 @@ xcodebuild test -project FreeRemote.xcodeproj -scheme FreeRemote \
 ```
 
 Real-TV behaviour is checked by hand with [`docs/testing/manual-checklist.md`](docs/testing/manual-checklist.md)
-and the `tvprobe` tool (`swift build --package-path SamsungTVKit --product tvprobe`).
+(run the parts your change touches) and the `tvprobe` tool
+(`swift build --package-path SamsungTVKit --product tvprobe`).
 
 ## Style
 

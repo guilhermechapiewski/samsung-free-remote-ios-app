@@ -11,7 +11,7 @@ SWIFT_STRICT_CONCURRENCY = complete
 CODE_SIGN_STYLE = Automatic
 DEVELOPMENT_TEAM =
 
-// YES only once Apple has granted your team the multicast networking entitlement
+// YES only for builds signed by a team that Apple has granted the multicast networking entitlement
 // (com.apple.developer.networking.multicast). It picks the entitlements file and tells the app, via
 // FRMulticastEnabled in Info.plist, to use SSDP discovery and broadcast Wake-on-LAN. Set it in
 // Local.xcconfig, never here.

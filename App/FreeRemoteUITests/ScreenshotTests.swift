@@ -1,6 +1,6 @@
 import XCTest
 
-/// Captures the App Store screenshots from demo mode (fictional TVs only). Run by `scripts/screenshots.sh`,
+/// Captures screenshots of demo mode (fictional TVs only). Run by `scripts/screenshots.sh`,
 /// which exports the attachments below.
 final class ScreenshotTests: XCTestCase {
     override func setUp() {

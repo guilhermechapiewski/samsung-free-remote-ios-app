@@ -7,3 +7,4 @@ DerivedData/
 Config/Local.xcconfig
 # Xcode regenerates the project's embedded workspace; nothing in it is needed (no package dependencies).
 FreeRemote.xcodeproj/project.xcworkspace/
+build/

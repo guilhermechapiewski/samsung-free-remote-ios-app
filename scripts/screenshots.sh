@@ -1,6 +1,7 @@
 #!/bin/bash
-# Captures the App Store screenshots from demo mode and exports them to AppStore/screenshots/<device>/.
-# Needs Xcode with the iOS 27.0 simulator runtime. Usage: scripts/screenshots.sh
+# Captures screenshots of demo mode (fictional TVs only) and exports them to <out>/<device>/.
+# <out> is $SCREENSHOTS_DIR, else build/screenshots (git-ignored).
+# Needs Xcode with the iOS 27.0 simulator runtime. Usage: [SCREENSHOTS_DIR=dir] scripts/screenshots.sh
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -10,7 +11,7 @@ DEVICES=(
   "iPhone 17 Pro Max|com.apple.CoreSimulator.SimDeviceType.iPhone-17-Pro-Max"
   "iPhone 17 Pro|com.apple.CoreSimulator.SimDeviceType.iPhone-17-Pro"
 )
-OUT="AppStore/screenshots"
+OUT="${SCREENSHOTS_DIR:-build/screenshots}"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 

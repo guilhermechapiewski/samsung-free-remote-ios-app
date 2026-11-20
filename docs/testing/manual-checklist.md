@@ -1,18 +1,17 @@
 # Manual test checklist (real devices)
 
-Run before every release on a real iPhone, with the release build you will submit (with or without the
-multicast networking entitlement; steps marked **[multicast]** apply only to builds with
-`FREE_REMOTE_MULTICAST = YES`, and **[no multicast]** only to builds without it), against every TV model
-generation available (ideally one TV per supported year range). Run it once per TV
-unless a step says otherwise.
+Checks that need a real iPhone and real Samsung TVs. Contributors: run the sections your change touches, on
+whatever TVs you have, and list the TV model years in your pull request. Run each step once per TV unless it
+says otherwise. Steps marked **[no multicast]** apply to normal builds (`FREE_REMOTE_MULTICAST = NO`, the
+default); steps marked **[multicast]** apply only to builds signed with the multicast networking entitlement.
 
 **Record results privately.** Do not commit IP addresses, MAC addresses, serial numbers, device IDs, network
 names or TV names. In public notes, refer to TVs only by model year and series.
 
 ## Setup
 
-- [ ] Release-configuration build installed on the iPhone; `FREE_REMOTE_MULTICAST` set as intended for this
-      release (the build log's `CODE_SIGN_ENTITLEMENTS` line shows which entitlements file was used).
+- [ ] The app installed on the iPhone (the build log's `CODE_SIGN_ENTITLEMENTS` line shows which entitlements
+      file was used).
 - [ ] iPhone and TVs on the same Wi-Fi network (not a guest network).
 - [ ] On each TV, "Power On with Mobile" / network standby is enabled (note the menu path per model).
 - [ ] Start clean: delete the app, and remove "TV Remote" (and any older "Free Remote" entry) from each TV's Device Connection Manager.
