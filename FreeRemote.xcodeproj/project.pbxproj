@@ -63,8 +63,6 @@
 		F00000000000000000027001 /* Exceptions for "App/FreeRemote" folder in "FreeRemote" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				"FreeRemote+Multicast.entitlements",
-				FreeRemote.entitlements,
 				Info.plist,
 			);
 			target = F0000000000000000000E001 /* FreeRemote */;
