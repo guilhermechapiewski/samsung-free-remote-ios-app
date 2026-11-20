@@ -1,6 +1,6 @@
 # Notes for coding agents
 
-Free Remote for Samsung TV: a free, open-source iPhone app (iOS 27+, iPhone only) that finds Samsung Tizen TVs
+Simple Remote for Samsung TV: a free, open-source iPhone app (iOS 27+, iPhone only) that finds Samsung Tizen TVs
 on the local network and controls them like the physical remote. Read `README.md` for the overview and
 `CONTRIBUTING.md` for the full ground rules; this file is the short version plus what agents tend to miss.
 

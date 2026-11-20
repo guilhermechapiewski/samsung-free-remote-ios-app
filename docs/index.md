@@ -1,12 +1,15 @@
 ---
-title: Free Remote for Samsung TV
+title: Simple Remote for Samsung TV
 ---
 
-# Free Remote for Samsung TV
+# Simple Remote for Samsung TV
 
-A free iPhone remote for Samsung Smart TVs (Tizen). It finds your TV on your Wi-Fi network and works like the
-remote that came with it: power, volume, channels, the arrow pad, Source and HDMI inputs, a number pad, and
-typing into the TV's search boxes. No ads, no accounts, no tracking.
+A calm, fast iPhone remote for Samsung Smart TVs (Tizen). Open it and your TV is there: it finds your TV on your
+Wi-Fi by itself, connects in seconds, and always shows what's happening. Everything the remote that came with
+your TV does is here: power, volume, channels, the arrow pad, Source and HDMI inputs, a number pad, and typing
+into the TV's search boxes.
+
+**Free, for real:** no ads, no in-app purchases, no subscriptions, no accounts and no tracking.
 
 <img src="images/remote.png" alt="The remote screen" width="300">
 

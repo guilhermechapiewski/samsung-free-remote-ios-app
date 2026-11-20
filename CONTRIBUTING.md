@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for helping improve Free Remote for Samsung TV. Bug reports, TV compatibility reports, ideas and pull
+Thanks for helping improve Simple Remote for Samsung TV. Bug reports, TV compatibility reports, ideas and pull
 requests are all welcome.
 
 ## How the project works
