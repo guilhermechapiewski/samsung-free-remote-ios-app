@@ -20,6 +20,15 @@ import UIKit
         #expect(StatusLine.connecting(to: "Den") == StatusLine("Connecting to Den…", tone: .progress))
     }
 
+    @Test func onlyTappableStatusesLookTappable() {
+        // ⓘ means "tap for more"; a decorative "i" on a status without a detail invites a tap that does
+        // nothing (the owner tried to tap "The TV is off").
+        for line in Self.catalog {
+            #expect(!(line.symbol ?? "").contains("info"), "\(line.title)")
+        }
+        #expect(StatusLine.tvOff.symbol == "power")
+    }
+
     /// The point of the fixed-height line: the remote below must not move, whatever is (or isn't) shown.
     @Test(arguments: [DynamicTypeSize.large, .accessibility3])
     func everyStatusTakesTheSameHeight(size: DynamicTypeSize) {

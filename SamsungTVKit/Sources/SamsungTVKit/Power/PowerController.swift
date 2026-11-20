@@ -19,6 +19,9 @@ public actor PowerController {
     private static let log = Logger(subsystem: "SamsungTVKit", category: "PowerController")
     static let keyTimeout: Duration = .seconds(3)
     static let pollInterval: Duration = .seconds(1)
+    /// How long a power-on waits for the TV to report on. Some TVs take well over 20 s to boot from
+    /// network standby (a 2022 model in testing); the app keeps watching afterwards anyway.
+    public static let defaultWakeTimeout: Duration = .seconds(45)
 
     private let fetcher: any TVInfoFetching
     private let wake: @Sendable (MACAddress, IPv4Interface, String) async -> Void
@@ -36,7 +39,7 @@ public actor PowerController {
         wake: @escaping @Sendable (MACAddress, IPv4Interface, String) async -> Void,
         interface: @escaping @Sendable () -> IPv4Interface?,
         clock: any Clock<Duration> = ContinuousClock(),
-        wakeTimeout: Duration = .seconds(20),
+        wakeTimeout: Duration = PowerController.defaultWakeTimeout,
         offConfirmTimeout: Duration = .seconds(5)
     ) {
         self.fetcher = fetcher

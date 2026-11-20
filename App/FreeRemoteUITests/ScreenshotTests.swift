@@ -48,7 +48,7 @@ final class ScreenshotTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Choose your TV"].waitForExistence(timeout: 10))
         app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Living Room'")).firstMatch.tap()
         waitForRemote(app)
-        app.buttons["TV picker"].tap()
+        openMenu(app)
         XCTAssertTrue(app.buttons["Rename…"].waitForExistence(timeout: 5))
         capture(app, "02-picker")
     }
@@ -57,7 +57,7 @@ final class ScreenshotTests: XCTestCase {
     func testRenameSheet() {
         let app = launch(["-demo"])
         waitForRemote(app)
-        app.buttons["TV picker"].tap()
+        openMenu(app)
         app.buttons["Rename…"].tap()
         XCTAssertTrue(app.textFields["TV name"].waitForExistence(timeout: 5))
         // A fresh simulator shows the keyboard's swipe-typing intro once; dismiss it.

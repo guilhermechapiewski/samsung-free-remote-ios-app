@@ -79,6 +79,9 @@ struct PowerControllerTests {
         )
     }
 
+    /// One poll per second for the whole power-on wait.
+    private let wakePolls = Int(PowerController.defaultWakeTimeout.components.seconds)
+
     /// Advances the clock one second per poll until `task` finishes.
     private func drive(_ task: Task<PowerOutcome?, Never>, polls: Int) async -> PowerOutcome? {
         for _ in 0..<polls {
@@ -203,7 +206,7 @@ struct PowerControllerTests {
         let sender = FakeSender()
         let c = controller(fetcher)
         let task = Task { await c.togglePower(tv: knownTV(), sender: sender) }
-        #expect(await drive(task, polls: 20) == .failedToWake)
+        #expect(await drive(task, polls: wakePolls) == .failedToWake)
         #expect(sender.sent == [.power])
         #expect(wakes.macs.isEmpty)
     }
@@ -269,9 +272,9 @@ struct PowerControllerTests {
         let sender = FakeSender()
         let c = controller(fetcher)
         let task = Task { await c.togglePower(tv: knownTV(), sender: sender) }
-        #expect(await drive(task, polls: 20) == .failedToWake)
+        #expect(await drive(task, polls: wakePolls) == .failedToWake)
         #expect(wakes.macs == [mac])
-        #expect(fetcher.fetchedHosts.count == 21)
+        #expect(fetcher.fetchedHosts.count == wakePolls + 1) // the plan check, then one per poll
     }
 
     // MARK: - Concurrency
@@ -294,4 +297,9 @@ struct PowerControllerTests {
         #expect(await drive(third, polls: 1) == .turnedOff)
         #expect(sender.sent == [.power])
     }
+}
+
+@Test func powerOnWaitsLongEnoughForSlowTVs() {
+    // A 2022 TV in testing took over 20 s to report on after waking from network standby.
+    #expect(PowerController.defaultWakeTimeout >= .seconds(40))
 }

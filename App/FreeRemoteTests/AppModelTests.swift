@@ -909,11 +909,17 @@ private let tvC = info("uuid:c", host: "192.168.1.12", name: "Alpha", model: "QE
         let h = Harness(known: [tvA], selected: tvA.id, fetchable: [tvA])
         await connected(h)
         h.fetcher.infos = [:] // gone (unplugged, or off without network standby)
-        await tick(h)
-        #expect(h.sessions.list.count == 1) // one miss is tolerated
-        await tick(h)
-        await settle { h.sessions.list.count == 2 }
-        #expect(h.sessions.list.count == 2) // the silent connection is replaced; it fails fast if gone
+        // Count checks answered from now on (one may already be in flight; it counts too, as it answers
+        // after this point). The connection is replaced only after two misses in a row.
+        let answeredBefore = h.fetcher.answered.withLock { $0 }
+        var missesWhenReplaced: Int?
+        for _ in 0..<4 where missesWhenReplaced == nil {
+            await tick(h)
+            if h.sessions.list.count == 2 {
+                missesWhenReplaced = h.fetcher.answered.withLock { $0 } - answeredBefore
+            }
+        }
+        #expect(missesWhenReplaced.map { $0 >= AppModel.missedChecksBeforeReconnect } == true)
         #expect(h.sessions.list.first?.snapshot.disconnects == 1)
     }
 

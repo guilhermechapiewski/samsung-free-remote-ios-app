@@ -17,11 +17,26 @@ struct StatusLine: Hashable {
     let title: String
     let tone: StatusTone
     let detail: String?
+    /// The leading icon. Progress shows a spinner instead; nil shows no icon. Never an "info" glyph: ⓘ is
+    /// reserved for statuses that open a detail when tapped.
+    let symbol: String?
 
-    init(_ title: String, tone: StatusTone, detail: String? = nil) {
+    init(_ title: String, tone: StatusTone, detail: String? = nil, symbol: String? = nil) {
         self.title = title
         self.tone = tone
         self.detail = detail
+        self.symbol = symbol ?? tone.defaultSymbol
+    }
+}
+
+extension StatusTone {
+    /// Information has no default icon: a generic "i" would look like the tappable ⓘ.
+    var defaultSymbol: String? {
+        switch self {
+        case .progress, .info: nil
+        case .success: "checkmark.circle.fill"
+        case .warning: "exclamationmark.triangle.fill"
+        }
     }
 }
 
@@ -47,7 +62,7 @@ extension StatusLine {
         StatusLine(name.map { "Connected to \($0)" } ?? "Connected", tone: .success)
     }
 
-    static let tvOff = StatusLine("The TV is off", tone: .info)
+    static let tvOff = StatusLine("The TV is off", tone: .info, symbol: "power")
     static let unreachable = StatusLine(
         "Can't reach the TV", tone: .warning,
         detail: "Make sure the TV is on and connected to the same Wi-Fi network as this iPhone. "
@@ -77,7 +92,7 @@ extension StatusLine {
             + "Allow when the TV asks."
     )
     static let chooseTVFirst = StatusLine("Choose a TV first", tone: .warning)
-    static let chooseAllow = StatusLine("Choose Allow on the TV", tone: .info)
+    static let chooseAllow = StatusLine("Choose Allow on the TV", tone: .info, symbol: "hand.tap.fill")
     static let blocked = StatusLine(
         "The TV blocked this iPhone", tone: .warning,
         detail: "On the TV, open Settings → General → External Device Manager → Device Connection Manager "

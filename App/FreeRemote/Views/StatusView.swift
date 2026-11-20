@@ -25,16 +25,6 @@ extension StatusTone {
         case .info: .secondary
         }
     }
-
-    /// Nil for `.progress`, which shows a spinner instead.
-    var symbol: String? {
-        switch self {
-        case .progress: nil
-        case .success: "checkmark.circle.fill"
-        case .warning: "exclamationmark.triangle.fill"
-        case .info: "info.circle.fill"
-        }
-    }
 }
 
 /// The status line above the D-pad: one short line, tinted by tone (blue with a spinner while something is
@@ -46,6 +36,8 @@ struct StatusView: View {
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var showsDetail = false
+    /// Every icon gets a slot this tall (about one line of text), so no symbol can make a chip taller.
+    @ScaledMetric(relativeTo: .subheadline) private var iconHeight: CGFloat = 18
 
     init(_ line: StatusLine?) { self.line = line }
 
@@ -54,8 +46,9 @@ struct StatusView: View {
 
     var body: some View {
         ZStack {
-            // Reserves the height of a full chip whatever is (or isn't) showing.
-            chip(StatusLine(Array(repeating: "Ag", count: lineCount).joined(separator: "\n"), tone: .info))
+            // Reserves the height of a full chip whatever is (or isn't) showing: text, an icon and the ⓘ.
+            chip(StatusLine(Array(repeating: "Ag", count: lineCount).joined(separator: "\n"), tone: .warning,
+                            detail: " "))
                 .hidden()
                 .accessibilityHidden(true)
             if let line {
@@ -98,13 +91,14 @@ struct StatusView: View {
         let tint = line.tone.color
         let shape = Capsule(style: .continuous)
         return HStack(spacing: 8) {
-            if let symbol = line.tone.symbol {
-                Image(systemName: symbol)
-                    .foregroundStyle(tint)
-            } else {
+            if line.tone == .progress {
                 ProgressView()
                     .controlSize(.small)
                     .tint(tint)
+            } else if let symbol = line.symbol {
+                Image(systemName: symbol)
+                    .foregroundStyle(line.tone == .info ? Color.secondary : tint)
+                    .frame(height: iconHeight)
             }
             Text(line.title)
                 .foregroundStyle(line.tone == .info ? Color.primary : tint)
@@ -114,6 +108,7 @@ struct StatusView: View {
             if line.detail != nil {
                 Image(systemName: "info.circle")
                     .foregroundStyle(line.tone == .info ? Color.secondary : tint)
+                    .frame(height: iconHeight)
             }
         }
         .font(.subheadline.weight(.semibold))

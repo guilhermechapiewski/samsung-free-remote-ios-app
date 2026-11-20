@@ -84,7 +84,7 @@ final class FlowUITests: XCTestCase {
         let picker = app.buttons["TV picker"]
         let close = app.buttons["Close menu"]
 
-        picker.tap()
+        openMenu(app)
         XCTAssertTrue(app.buttons["Feedback & Bug Reports"].waitForExistence(timeout: 5))
         attachScreenshot(app, "menu")
         app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.95)).tap()
@@ -92,7 +92,7 @@ final class FlowUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Volume up"].isHittable)
 
         // TV Details: each row reads as one element, "label, value".
-        picker.tap()
+        openMenu(app)
         app.buttons["TV Details"].tap()
         XCTAssertTrue(app.staticTexts["IP Address, 10.0.0.21"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["Last Seen, Just now"].waitForExistence(timeout: 5))
@@ -102,7 +102,7 @@ final class FlowUITests: XCTestCase {
         XCTAssertTrue(picker.waitForExistence(timeout: 5))
 
         // Scan Again keeps the menu open; its header shows the progress, then the result.
-        picker.tap()
+        openMenu(app)
         app.buttons["Scan Again"].tap()
         XCTAssertTrue(app.staticTexts["Looking for TVs…"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["Scanning…"].exists)
@@ -123,6 +123,7 @@ final class FlowUITests: XCTestCase {
         // The demo Bedroom TV is in standby: the presence check soon shows it as off and asleep.
         XCTAssertTrue(status.waitForLabel("The TV is off", timeout: 8))
         XCTAssertTrue(picker.waitForValue(containing: "Asleep", timeout: 5))
+        Thread.sleep(forTimeInterval: 0.5) // let the crossfade finish for the screenshot
         attachScreenshot(app, "tv-off")
     }
 
@@ -131,7 +132,7 @@ final class FlowUITests: XCTestCase {
         let app = launch()
         waitForRemote(app)
         let picker = app.buttons["TV picker"]
-        picker.tap()
+        openMenu(app)
         app.buttons["Rename…"].tap()
 
         let field = app.textFields["TV name"]
@@ -152,7 +153,7 @@ final class FlowUITests: XCTestCase {
     func testAddTVRejectsPublicIP() {
         let app = launch()
         waitForRemote(app)
-        app.buttons["TV picker"].tap()
+        openMenu(app)
         app.buttons["Add TV by IP Address…"].tap()
 
         let field = app.textFields["IP address"]
@@ -178,7 +179,7 @@ final class FlowUITests: XCTestCase {
     func testMenuScrollsAtLargestTextSize() {
         let app = launch(["-demo", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"])
         XCTAssertTrue(app.buttons["TV picker"].waitForExistence(timeout: 10))
-        app.buttons["TV picker"].tap()
+        openMenu(app)
         let feedback = app.buttons["Feedback & Bug Reports"]
         XCTAssertTrue(feedback.waitForExistence(timeout: 5))
         attachScreenshot(app, "menu-large-text")
@@ -222,6 +223,15 @@ final class FlowUITests: XCTestCase {
         Thread.sleep(forTimeInterval: 2)
         XCTAssertFalse(field.exists)
     }
+}
+
+/// Taps the TV card and waits for the menu panel, so the next tap never races its opening animation (the
+/// app may not go idle while a status spinner runs, so XCUITest's own wait is not enough).
+@MainActor
+func openMenu(_ app: XCUIApplication, file: StaticString = #filePath, line: UInt = #line) {
+    app.buttons["TV picker"].tap()
+    XCTAssertTrue(app.buttons["Close menu"].waitForExistence(timeout: 5), "the TV menu did not open",
+                  file: file, line: line)
 }
 
 private extension XCUIElement {
