@@ -155,6 +155,22 @@ final class AppModel {
         repeater = RepeatController(clock: env.clock, strategy: .default) { [weak self] key, action in
             await self?.sendFromHold(key, action)
         }
+        loadRemembered()
+    }
+
+    /// Loads the remembered TVs and selection (a small local file and defaults), so the very first frame
+    /// shows them instead of an empty "No TVs found" state. Network work waits for `onAppear()`.
+    private func loadRemembered() {
+        registry = env.knownTVStore.load()
+        if let raw = env.userDefaults.string(forKey: Self.selectedTVKey) {
+            let id = TVID(rawValue: raw)
+            if registry.tvs[id] != nil {
+                selectedID = id
+            } else {
+                env.userDefaults.removeObject(forKey: Self.selectedTVKey)
+            }
+        }
+        rebuildTVs()
     }
 
     var screen: ScreenState {
@@ -187,15 +203,6 @@ final class AppModel {
     func onAppear() {
         guard !appeared else { return }
         appeared = true
-        registry = env.knownTVStore.load()
-        if let raw = env.userDefaults.string(forKey: Self.selectedTVKey) {
-            let id = TVID(rawValue: raw)
-            if registry.tvs[id] != nil {
-                selectedID = id
-            } else {
-                env.userDefaults.removeObject(forKey: Self.selectedTVKey)
-            }
-        }
         let changes = env.labels.changes
         labelTask = Task { [weak self] in
             for await _ in changes { self?.rebuildTVs() }

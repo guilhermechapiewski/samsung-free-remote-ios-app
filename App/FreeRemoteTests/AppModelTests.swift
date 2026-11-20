@@ -725,6 +725,24 @@ private let tvC = info("uuid:c", host: "192.168.1.12", name: "Alpha", model: "QE
         #expect(h.model.screen == .ready)
     }
 
+    // MARK: Launch
+
+    @Test func firstFrameShowsRememberedTVs() {
+        // Before onAppear (the first frame), the remembered TVs and selection are already loaded, so the
+        // screen never flashes "No TVs found".
+        let h = Harness(known: [tvA, tvB], selected: tvA.id)
+        #expect(h.model.selectedID == tvA.id)
+        #expect(h.model.tvs.map(\.id).sorted { $0.rawValue < $1.rawValue } == [tvA.id, tvB.id])
+        #expect(h.model.screen == .ready)
+        #expect(h.discovery.scans.isEmpty) // no network work until onAppear
+        #expect(h.sessions.list.isEmpty)
+    }
+
+    @Test func firstFrameWithoutSelectionShowsChooseTV() {
+        let h = Harness(known: [tvA, tvB])
+        #expect(h.model.screen == .chooseTV)
+    }
+
     // MARK: TV details
 
     @Test func detailsUnknownTVIsNil() async {
