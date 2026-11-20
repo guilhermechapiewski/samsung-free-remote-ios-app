@@ -111,15 +111,33 @@ struct TVMenuPanel: View {
         .onAppear { headerFocused = true }
     }
 
+    /// Feedback row title; short enough to stay on one line at the default text size.
+    static let feedbackTitle = "Feedback & Bug Reports"
+
+    /// TVs are tiles (like the choose-your-TV screen) under a "Your TVs" label; actions are plain rows
+    /// with icons below them, so the two kinds read differently at a glance.
     private var items: some View {
         VStack(spacing: 0) {
             if !model.tvs.isEmpty {
-                divider
-                ForEach(model.tvs) { tv in
-                    tvRow(tv)
+                Divider()
+                Text("Your TVs")
+                    .font(.footnote.weight(.semibold))
+                    .textCase(.uppercase)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 16)
+                    .padding(.top, 12)
+                    .padding(.bottom, 8)
+                    .accessibilityAddTraits(.isHeader)
+                VStack(spacing: 6) {
+                    ForEach(model.tvs) { tv in
+                        tvTile(tv)
+                    }
                 }
+                .padding(.horizontal, 10)
+                .padding(.bottom, 10)
             }
-            divider
+            Divider()
             if let id = model.selectedID {
                 row("TV Details", systemImage: "info.circle") { onDetails(id) }
                 row("Rename…", systemImage: "pencil") { onRename(id) }
@@ -128,7 +146,7 @@ struct TVMenuPanel: View {
             row("Add TV by IP Address…", systemImage: "plus") { onAddTV() }
             scanRow
             divider
-            row("Send Feedback or Report a Bug", systemImage: "exclamationmark.bubble",
+            row(Self.feedbackTitle, systemImage: "exclamationmark.bubble",
                 trailing: "arrow.up.right") {
                 onClose()
                 openURL(AppLinks.issues)
@@ -140,35 +158,36 @@ struct TVMenuPanel: View {
         Divider().padding(.leading, 16)
     }
 
-    private func tvRow(_ tv: TVListItem) -> some View {
-        Button {
+    private func tvTile(_ tv: TVListItem) -> some View {
+        let isSelected = tv.id == model.selectedID
+        return Button {
             model.select(tv.id)
             onClose()
         } label: {
             HStack(spacing: 12) {
                 Circle().fill(tv.status.dotColor).frame(width: 9, height: 9)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(tv.title).font(.body).foregroundStyle(.primary)
+                    Text(tv.title).font(.headline).foregroundStyle(.primary)
                     Text("\(tv.subtitle) · \(tv.status.displayName)")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
                 Spacer(minLength: 8)
-                if tv.id == model.selectedID {
-                    Image(systemName: "checkmark")
-                        .font(.body.weight(.semibold))
+                if isSelected {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.title3)
                         .foregroundStyle(.tint)
                 }
             }
-            .padding(.horizontal, 16)
+            .padding(.horizontal, 12)
             .padding(.vertical, 10)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .contentShape(Rectangle())
+            .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         }
-        .buttonStyle(MenuRowStyle())
+        .buttonStyle(TVTileStyle(isSelected: isSelected))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(tv.title), \(tv.status.displayName)")
-        .accessibilityAddTraits(tv.id == model.selectedID ? [.isButton, .isSelected] : .isButton)
+        .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
     }
 
     private var scanRow: some View {
@@ -222,6 +241,18 @@ private extension View {
             .padding(.vertical, 12)
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())
+    }
+}
+
+/// A TV in the menu: a filled tile, outlined when it is the selected TV, darker while pressed.
+struct TVTileStyle: ButtonStyle {
+    let isSelected: Bool
+
+    func makeBody(configuration: Configuration) -> some View {
+        let shape = RoundedRectangle(cornerRadius: 12, style: .continuous)
+        configuration.label
+            .background(shape.fill(configuration.isPressed ? Color.remoteOK : Color.remoteKey))
+            .overlay(shape.strokeBorder(.tint, lineWidth: isSelected ? 1.5 : 0))
     }
 }
 

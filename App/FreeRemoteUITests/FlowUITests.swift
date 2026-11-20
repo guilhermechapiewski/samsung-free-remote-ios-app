@@ -85,7 +85,7 @@ final class FlowUITests: XCTestCase {
         let close = app.buttons["Close menu"]
 
         picker.tap()
-        XCTAssertTrue(app.buttons["Send Feedback or Report a Bug"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Feedback & Bug Reports"].waitForExistence(timeout: 5))
         attachScreenshot(app, "menu")
         app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.95)).tap()
         XCTAssertTrue(close.waitForNonExistence(timeout: 5))
@@ -168,7 +168,7 @@ final class FlowUITests: XCTestCase {
         let app = launch(["-demo", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"])
         XCTAssertTrue(app.buttons["TV picker"].waitForExistence(timeout: 10))
         app.buttons["TV picker"].tap()
-        let feedback = app.buttons["Send Feedback or Report a Bug"]
+        let feedback = app.buttons["Feedback & Bug Reports"]
         XCTAssertTrue(feedback.waitForExistence(timeout: 5))
         attachScreenshot(app, "menu-large-text")
         let panel = app.scrollViews.firstMatch

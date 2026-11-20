@@ -96,7 +96,7 @@ a haptic tap:
 - [ ] **TV Details** with the TV on: shows "Checking the TV…" briefly, then model, year, IP, MAC, connection,
       resolution, features, language and country; long-press a value → Copy; Copy All copies everything.
 - [ ] **TV Details** with the TV unplugged: shows the last known details and the "didn't answer" note.
-- [ ] "Send Feedback or Report a Bug" opens the project's GitHub issues page in the default browser.
+- [ ] "Feedback & Bug Reports" opens the project's GitHub issues page in the default browser.
 
 ## Names and sync
 
