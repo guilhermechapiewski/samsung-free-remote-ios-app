@@ -45,7 +45,7 @@ struct RemoteView: View {
         VStack(spacing: 16) {
             Spacer(minLength: 4)
             topRow
-            StatusView(text: model.statusText)
+            StatusView(model.status)
             DPad(onBegin: model.beginHold, onEnd: model.endHold, onPress: model.press)
                 .disabled(!availability.controls)
                 .dynamicTypeSize(...DynamicTypeSize.xxxLarge)

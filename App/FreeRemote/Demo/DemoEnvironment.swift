@@ -70,6 +70,7 @@ enum DemoEnvironment {
         let interface = IPv4Interface(name: "en0", address: 0x0A00_0002, netmask: 0xFFFF_FF00)
         let fetcher = DemoFetcher(infos: Dictionary(uniqueKeysWithValues: found.map { ($0.host, $0) }))
         let scans = DemoScanCounter()
+        let sessions = DemoScanCounter()
         return AppEnvironment(
             makeDiscovery: { _ in
                 // The launch scan answers at once (screenshots); later scans take a moment, like a
@@ -84,7 +85,10 @@ enum DemoEnvironment {
                     continuation.onTermination = { _ in task.cancel() }
                 }
             },
-            makeSession: { _, _ in DemoSession(connectsTo: connectsTo, asksForText: scenario == .keyboard, keyLog: keyLog) },
+            makeSession: { _, _ in
+                DemoSession(connectsTo: connectsTo, asksForText: scenario == .keyboard, keyLog: keyLog,
+                            connectDelay: sessions.next() == 1 ? .zero : .seconds(1))
+            },
             makePowerController: { DemoPower() },
             fetcher: fetcher,
             credentials: DemoCredentials(),
@@ -139,8 +143,13 @@ private final class DemoSession: RemoteSessionProtocol {
     private let asksForText: Bool
     private let keyLog: DemoKeyLog?
 
-    init(connectsTo: SessionState, asksForText: Bool, keyLog: DemoKeyLog?) {
+    /// How long `connect()` takes; the launch connection is instant (screenshots), later ones take a
+    /// moment like a real TV, so "Connecting to …" shows.
+    private let connectDelay: Duration
+
+    init(connectsTo: SessionState, asksForText: Bool, keyLog: DemoKeyLog?, connectDelay: Duration = .zero) {
         self.connectsTo = connectsTo
+        self.connectDelay = connectDelay
         self.asksForText = asksForText
         self.keyLog = keyLog
         (states, stateContinuation) = AsyncStream.makeStream()
@@ -150,6 +159,11 @@ private final class DemoSession: RemoteSessionProtocol {
     var currentState: SessionState { state.withLock { $0 } }
 
     func connect() async {
+        if connectDelay > .zero {
+            state.withLock { $0 = .connecting }
+            stateContinuation.yield(.connecting)
+            try? await Task.sleep(for: connectDelay)
+        }
         state.withLock { $0 = connectsTo }
         stateContinuation.yield(connectsTo)
         if asksForText {
@@ -247,7 +261,7 @@ struct DemoKeyLogView: View {
     }
 }
 
-/// Counts demo scans (shared by the discovery closure).
+/// Counts demo scans or sessions (shared by the closures that make them).
 private final class DemoScanCounter: Sendable {
     private let count = Mutex(0)
 

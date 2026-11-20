@@ -1,24 +1,89 @@
 import SwiftUI
 import UIKit
 
-/// One line (or a few) above the D-pad explaining why the keys are unavailable, or what just went wrong.
+extension Color {
+    /// Status line tints, darker in light mode for contrast on their pale fill.
+    static let statusProgress = dynamicStatus(light: 0x0A5AC2, dark: 0x5EA5FF)
+    static let statusSuccess = dynamicStatus(light: 0x1B7A37, dark: 0x4CD964)
+    static let statusWarning = dynamicStatus(light: 0x9A5700, dark: 0xFFB340)
+
+    private static func dynamicStatus(light: UInt32, dark: UInt32) -> Color {
+        Color(UIColor { traits in
+            let rgb = traits.userInterfaceStyle == .light ? light : dark
+            return UIColor(red: CGFloat((rgb >> 16) & 0xFF) / 255, green: CGFloat((rgb >> 8) & 0xFF) / 255,
+                           blue: CGFloat(rgb & 0xFF) / 255, alpha: 1)
+        })
+    }
+}
+
+extension StatusTone {
+    var color: Color {
+        switch self {
+        case .progress: .statusProgress
+        case .success: .statusSuccess
+        case .warning: .statusWarning
+        case .info: .secondary
+        }
+    }
+
+    /// Nil for `.progress`, which shows a spinner instead.
+    var symbol: String? {
+        switch self {
+        case .progress: nil
+        case .success: "checkmark.circle.fill"
+        case .warning: "exclamationmark.triangle.fill"
+        case .info: "info.circle.fill"
+        }
+    }
+}
+
+/// The status line above the D-pad: what is happening (blue, with a spinner), that it worked (green), what
+/// went wrong (orange), or plain information. Tinted so a change is hard to miss.
 struct StatusView: View {
-    let text: String?
+    let line: StatusLine?
+
+    init(_ line: StatusLine?) { self.line = line }
 
     var body: some View {
-        Text(text ?? "")
-            .font(.footnote)
-            .foregroundStyle(.secondary)
-            .multilineTextAlignment(.center)
-            .fixedSize(horizontal: false, vertical: true)
-            .padding(.horizontal, text == nil ? 0 : 12)
-            .padding(.vertical, text == nil ? 0 : 6)
-            .background {
-                if text != nil { Capsule().fill(Color.remoteCard) }
+        ZStack {
+            if let line {
+                content(line)
+                    .id(line) // a new message animates in
+                    .transition(.opacity.combined(with: .scale(scale: 0.92)))
             }
-            .frame(maxWidth: .infinity, minHeight: 18)
-            .accessibilityHidden(text == nil)
-            .accessibilityIdentifier("status")
+        }
+        .frame(maxWidth: .infinity, minHeight: 18)
+        .animation(.snappy(duration: 0.25), value: line)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(line?.text ?? "")
+        .accessibilityHidden(line == nil)
+        .accessibilityIdentifier("status")
+    }
+
+    private func content(_ line: StatusLine) -> some View {
+        let tint = line.tone.color
+        let shape = RoundedRectangle(cornerRadius: 14, style: .continuous)
+        return HStack(alignment: .firstTextBaseline, spacing: 8) {
+            if let symbol = line.tone.symbol {
+                Image(systemName: symbol)
+                    .foregroundStyle(tint)
+                    .accessibilityHidden(true)
+            } else {
+                ProgressView()
+                    .controlSize(.small)
+                    .tint(tint)
+                    .alignmentGuide(.firstTextBaseline) { $0[VerticalAlignment.center] + 5 }
+            }
+            Text(line.text)
+                .foregroundStyle(line.tone == .info ? Color.primary : tint)
+                .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .font(.subheadline.weight(.semibold))
+        .padding(.horizontal, 14)
+        .padding(.vertical, 9)
+        .background(shape.fill(line.tone == .info ? Color.remoteCard : tint.opacity(0.14)))
+        .overlay(shape.strokeBorder(line.tone == .info ? Color.clear : tint.opacity(0.35), lineWidth: 1))
     }
 }
 
@@ -166,8 +231,11 @@ struct StateCard: View {
 
 #Preview {
     VStack(spacing: 20) {
-        StatusView(text: AppModel.screenStatusText(.searching))
-        StatusView(text: AppModel.unreachableMessage)
+        StatusView(StatusLine("Connecting to Living Room…", tone: .progress))
+        StatusView(StatusLine("Connected to Living Room", tone: .success))
+        StatusView(StatusLine(AppModel.unreachableMessage, tone: .warning))
+        StatusView(StatusLine(AppModel.turnedOffMessage, tone: .info))
     }
     .padding()
+    .background(Color.remoteBackground)
 }

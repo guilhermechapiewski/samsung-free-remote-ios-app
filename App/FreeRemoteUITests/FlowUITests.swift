@@ -111,7 +111,14 @@ final class FlowUITests: XCTestCase {
 
         // Choosing another TV closes the menu.
         app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Bedroom'")).firstMatch.tap()
-        XCTAssertTrue(close.waitForNonExistence(timeout: 5))
+        // The status line shows the connection happening, then confirms it (demo switches take a second).
+        let status = app.descendants(matching: .any)["status"].firstMatch
+        // Polled every 0.1 s: predicate expectations check about once a second and can miss a short state.
+        XCTAssertTrue(status.waitForLabel("Connecting to Bedroom…", timeout: 5))
+        attachScreenshot(app, "connecting")
+        XCTAssertTrue(status.waitForLabel("Connected to Bedroom", timeout: 5))
+        attachScreenshot(app, "connected")
+        XCTAssertFalse(close.exists)
         XCTAssertTrue(picker.waitForValue(containing: "Bedroom", timeout: 5))
     }
 
@@ -214,6 +221,16 @@ final class FlowUITests: XCTestCase {
 }
 
 private extension XCUIElement {
+    /// Waits until the accessibility label equals `text`, checking every 0.1 s.
+    func waitForLabel(_ text: String, timeout: TimeInterval) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if exists, label == text { return true }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+        }
+        return false
+    }
+
     /// Waits until the accessibility value contains `text` (and not `excluding`, when given).
     func waitForValue(containing text: String, excluding: String? = nil, timeout: TimeInterval) -> Bool {
         let deadline = Date().addingTimeInterval(timeout)

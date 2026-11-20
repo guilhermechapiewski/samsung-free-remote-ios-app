@@ -44,6 +44,28 @@ enum ScanFeedback: Equatable {
     case found(newTVs: Int)
 }
 
+/// How the status line above the D-pad should look.
+enum StatusTone: Hashable {
+    /// Something is happening (connecting, turning on or off).
+    case progress
+    /// It worked (connected).
+    case success
+    /// Something went wrong or needs the user.
+    case warning
+    /// Plain information.
+    case info
+}
+
+struct StatusLine: Hashable {
+    let text: String
+    let tone: StatusTone
+
+    init(_ text: String, tone: StatusTone) {
+        self.text = text
+        self.tone = tone
+    }
+}
+
 enum PowerDirection: Equatable {
     case turningOn, turningOff
 }
@@ -86,6 +108,8 @@ final class AppModel {
         "Couldn't reach the TV to change its power. Make sure it's on the same Wi-Fi network, then try again."
     static let sendFailedMessage = "The TV didn't receive that. Reconnecting…"
     static let turnedOffMessage = "The TV is off. Press Power to turn it on."
+    /// How long "Connected to …" stays up after a connection.
+    static let connectedConfirmationDuration: Duration = .seconds(2)
     /// While Local Network access looks denied, scan again this often (e.g. the user is still
     /// answering the permission prompt), up to `deniedRetryLimit` times.
     static let deniedRetryInterval: Duration = .seconds(3)
@@ -107,6 +131,9 @@ final class AppModel {
     var statusMessage: String?
     /// The TV to show the one-time "Power On with Mobile" tip for, or nil.
     var powerTipTV: TVID?
+    /// "Connected to …" is showing (briefly, after a connection).
+    private var showsConnected = false
+    @ObservationIgnored private var connectedConfirmationTask: Task<Void, Never>?
     /// Progress and result of a user-started scan, or nil.
     private(set) var scanFeedback: ScanFeedback?
 
@@ -433,6 +460,7 @@ final class AppModel {
         guard let handle = current else { return }
         current = nil
         sessionState = .idle
+        endConnectedConfirmation()
         keyboardRequested = false
         let disconnect = handle.close()
         afterTeardown { await disconnect.value }
@@ -449,7 +477,13 @@ final class AppModel {
 
     private func sessionStateChanged(_ state: SessionState, on handle: SessionHandle) {
         guard handle === current else { return }
+        let wasConnected = sessionState == .connected
         sessionState = state
+        if state == .connected, !wasConnected {
+            confirmConnected()
+        } else if state != .connected {
+            endConnectedConfirmation()
+        }
         if state == .connected, let id = selectedID {
             turnedOffTVs.remove(id)
             if !powerTipShown.contains(id.rawValue) { powerTipTV = id }
@@ -733,19 +767,56 @@ final class AppModel {
 
     /// The status line above the D-pad: power progress, else the transient message, else a short
     /// explanation of the state; nil when the selected TV is connected and there is nothing to say.
-    var statusText: String? {
-        if let powerDirection { return powerDirection == .turningOn ? "Turning on…" : "Turning off…" }
-        if let statusMessage { return statusMessage }
-        guard screen == .ready else { return Self.screenStatusText(screen) }
-        if isConnected { return nil }
+    var statusText: String? { status?.text }
+
+    /// The status line above the D-pad: what is happening with the selected TV, or what went wrong.
+    var status: StatusLine? {
+        if let powerDirection {
+            return StatusLine(powerDirection == .turningOn ? "Turning on…" : "Turning off…", tone: .progress)
+        }
+        if let statusMessage { return StatusLine(statusMessage, tone: Self.tone(ofMessage: statusMessage)) }
+        guard screen == .ready else { return Self.screenStatusText(screen).map { StatusLine($0, tone: .info) } }
+        let name = selectedTitle
+        if isConnected {
+            return showsConnected ? StatusLine(name.map { "Connected to \($0)" } ?? "Connected", tone: .success) : nil
+        }
         switch sessionState {
         case .failed(.unreachable), .failed(.approvalTimedOut):
             // A session that gave up is not connecting; never claim otherwise.
-            if selectedTurnedOff { return Self.turnedOffMessage }
-            return sessionState == .failed(.unreachable) ? Self.unreachableMessage : Self.approvalTimedOutMessage
+            if selectedTurnedOff { return StatusLine(Self.turnedOffMessage, tone: .info) }
+            let message = sessionState == .failed(.unreachable) ? Self.unreachableMessage : Self.approvalTimedOutMessage
+            return StatusLine(message, tone: .warning)
         case .idle, .connecting, .awaitingApproval, .connected, .failed(.denied), .failed(.identityChanged):
-            return "Connecting…"
+            return StatusLine(name.map { "Connecting to \($0)…" } ?? "Connecting…", tone: .progress)
         }
+    }
+
+    /// The tone of a transient `statusMessage`: the TV being off is information; the rest are problems.
+    static func tone(ofMessage message: String) -> StatusTone {
+        message == turnedOffMessage ? .info : .warning
+    }
+
+    private var selectedTitle: String? { tvs.first { $0.id == selectedID }?.title }
+
+    private func confirmConnected() {
+        connectedConfirmationTask?.cancel()
+        showsConnected = true
+        let clock = env.clock
+        connectedConfirmationTask = Task { [weak self] in
+            do {
+                try await clock.sleep(for: Self.connectedConfirmationDuration)
+            } catch {
+                return // cancelled
+            }
+            self?.showsConnected = false
+            self?.connectedConfirmationTask = nil
+        }
+    }
+
+    private func endConnectedConfirmation() {
+        connectedConfirmationTask?.cancel()
+        connectedConfirmationTask = nil
+        showsConnected = false
     }
 
     private var powerTipShown: [String] {

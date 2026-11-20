@@ -290,11 +290,17 @@ private struct Harness {
         await settle { !discovery.scans.isEmpty }
     }
 
-    /// Selects nothing new; connects the current session and waits until the model sees it.
-    func connectCurrent() async {
+    /// Selects nothing new; connects the current session and waits until the model sees it. Unless
+    /// `keepConfirmation`, lets the brief "Connected to …" confirmation run out, so the clock has no
+    /// sleepers left from it.
+    func connectCurrent(keepConfirmation: Bool = false) async {
         await settle { sessions.last?.snapshot.connects == 1 }
         sessions.last?.emit(.connected)
         await settle { model.screen == .ready && model.isConnected }
+        guard !keepConfirmation else { return }
+        await settle { clock.sleeperCount > 0 }
+        clock.advance(by: AppModel.connectedConfirmationDuration)
+        await settle { model.status?.tone != .success }
     }
 }
 
@@ -1241,8 +1247,8 @@ private let tvC = info("uuid:c", host: "192.168.1.12", name: "Alpha", model: "QE
         let session = try #require(h.sessions.last)
 
         session.emit(.connecting)
-        await settle { h.model.statusText == "Connecting…" }
-        #expect(h.model.statusText == "Connecting…")
+        await settle { h.model.statusText == "Connecting to Bravo…" }
+        #expect(h.model.status == StatusLine("Connecting to Bravo…", tone: .progress))
 
         session.emit(.awaitingApproval)
         await settle { h.model.screen == .pairing }
@@ -1250,7 +1256,7 @@ private let tvC = info("uuid:c", host: "192.168.1.12", name: "Alpha", model: "QE
 
         session.emit(.failed(.unreachable))
         await settle { h.model.statusMessage != nil }
-        #expect(h.model.statusText == AppModel.unreachableMessage)
+        #expect(h.model.status == StatusLine(AppModel.unreachableMessage, tone: .warning))
         // Even with the message gone, a session that gave up is never shown as connecting.
         h.model.statusMessage = nil
         #expect(h.model.statusText == AppModel.unreachableMessage)
@@ -1261,7 +1267,30 @@ private let tvC = info("uuid:c", host: "192.168.1.12", name: "Alpha", model: "QE
 
         session.emit(.connected)
         await settle { h.model.isConnected }
+        // A brief confirmation, then nothing.
+        #expect(h.model.status == StatusLine("Connected to Bravo", tone: .success))
+        await settle { h.clock.sleeperCount > 0 }
+        h.clock.advance(by: AppModel.connectedConfirmationDuration)
+        await settle { h.model.statusText == nil }
         #expect(h.model.statusText == nil)
+    }
+
+    @Test func statusTones() {
+        #expect(AppModel.tone(ofMessage: AppModel.turnedOffMessage) == .info)
+        #expect(AppModel.tone(ofMessage: AppModel.unreachableMessage) == .warning)
+        #expect(AppModel.tone(ofMessage: AppModel.sendFailedMessage) == .warning)
+        #expect(AppModel.tone(ofMessage: AppModel.failedToWakeMessage) == .warning)
+
+    }
+
+    @Test func connectedConfirmationEndsWhenTheSessionDrops() async throws {
+        let h = Harness(known: [tvA], selected: tvA.id)
+        await h.appear()
+        await h.connectCurrent(keepConfirmation: true)
+        #expect(h.model.status?.tone == .success)
+        h.sessions.last?.emit(.failed(.unreachable))
+        await settle { h.model.status?.tone == .warning }
+        #expect(h.model.status == StatusLine(AppModel.unreachableMessage, tone: .warning))
     }
 
     @Test func statusShowsPowerDirectionWhileRunning() async {
@@ -1272,7 +1301,7 @@ private let tvC = info("uuid:c", host: "192.168.1.12", name: "Alpha", model: "QE
         off.model.togglePower()
         await settle { off.power.gate.waiting == 1 }
         #expect(off.model.powerDirection == .turningOff)
-        #expect(off.model.statusText == "Turning off…")
+        #expect(off.model.status == StatusLine("Turning off…", tone: .progress))
         off.power.gate.open()
         await settle { !off.model.powerBusy }
         #expect(off.model.powerDirection == nil)
