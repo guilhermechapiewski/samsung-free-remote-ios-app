@@ -99,7 +99,7 @@ import SamsungTVKit
         #expect(StateCard.message(for: .pairing) == "Look at your TV and choose Allow.")
         #expect(StateCard.message(for: .pairingDenied)
             == "Your TV blocked this iPhone. On the TV, open Settings → General → External Device Manager → "
-            + "Device Connection Manager → Device List, allow Free Remote, then tap Try Again.")
+            + "Device Connection Manager → Device List, allow TV Remote, then tap Try Again.")
         #expect(StateCard.message(for: .identityChanged)
             == "This TV's security identity changed (this can happen after a software update). "
             + "Pair again to continue.")

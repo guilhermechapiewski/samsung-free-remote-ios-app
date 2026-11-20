@@ -8,7 +8,7 @@ confirmed on real hardware; see the checklist at the end.
 - `GET http://<host>:8001/api/v2/` — device info (JSON). Used for discovery, identity and power state.
   Only ever contacted for private (RFC 1918) or link-local IPv4 hosts. Responses are size-capped.
 - `wss://<host>:8002/api/v2/channels/samsung.remote.control?name=<base64 name>[&token=<token>]` — the
-  remote-control channel. The pairing name sent is the constant `Free Remote` (base64 encoded).
+  remote-control channel. The pairing name sent is the constant `TV Remote` (base64 encoded).
   Port 8001 is never used for control.
 - SSDP (`M-SEARCH` for `urn:samsung.com:device:RemoteControlReceiver:1` and
   `urn:dial-multiscreen-org:service:dial:1`) and Bonjour (Samsung TXT records) provide candidate hosts;

@@ -42,7 +42,7 @@ struct StateCard: View {
         case .pairing: "Look at your TV and choose Allow."
         case .pairingDenied:
             "Your TV blocked this iPhone. On the TV, open Settings → General → External Device Manager → "
-                + "Device Connection Manager → Device List, allow Free Remote, then tap Try Again."
+                + "Device Connection Manager → Device List, allow TV Remote, then tap Try Again."
         case .identityChanged:
             "This TV's security identity changed (this can happen after a software update). Pair again to continue."
         }

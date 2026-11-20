@@ -9,12 +9,12 @@ import Foundation
 
     @Test func channelURLWithoutToken() throws {
         let url = try #require(RemoteProtocol.channelURL(host: "10.0.0.5", token: nil))
-        #expect(url.absoluteString == "wss://10.0.0.5:8002/api/v2/channels/samsung.remote.control?name=RnJlZSBSZW1vdGU=")
+        #expect(url.absoluteString == "wss://10.0.0.5:8002/api/v2/channels/samsung.remote.control?name=VFYgUmVtb3Rl")
     }
 
     @Test func channelURLWithToken() throws {
         let url = try #require(RemoteProtocol.channelURL(host: "10.0.0.5", token: "abc"))
-        #expect(url.absoluteString == "wss://10.0.0.5:8002/api/v2/channels/samsung.remote.control?name=RnJlZSBSZW1vdGU=&token=abc")
+        #expect(url.absoluteString == "wss://10.0.0.5:8002/api/v2/channels/samsung.remote.control?name=VFYgUmVtb3Rl&token=abc")
     }
 
     @Test func channelURLPercentEncodesToken() throws {
@@ -35,7 +35,7 @@ import Foundation
     }
 
     @Test func pairingName() {
-        #expect(RemoteProtocol.pairingName == "Free Remote")
+        #expect(RemoteProtocol.pairingName == "TV Remote")
     }
 
     @Test func keyMessage() throws {

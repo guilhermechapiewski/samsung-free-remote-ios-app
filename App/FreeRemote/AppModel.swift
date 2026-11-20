@@ -478,7 +478,7 @@ final class AppModel {
         case .awaitingApproval:
             return "Look at your TV and choose Allow."
         case .failed(.denied):
-            return "Your TV blocked this iPhone. Allow Free Remote in the TV's Device Connection Manager."
+            return "Your TV blocked this iPhone. Allow TV Remote in the TV's Device Connection Manager."
         case .failed(.identityChanged):
             return "This TV's security identity changed. Pair again to continue."
         case .failed(.unreachable) where selectedTurnedOff, .failed(.approvalTimedOut) where selectedTurnedOff:

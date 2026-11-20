@@ -15,7 +15,7 @@ names or TV names. In public notes, refer to TVs only by model year and series.
       release (the build log's `CODE_SIGN_ENTITLEMENTS` line shows which entitlements file was used).
 - [ ] iPhone and TVs on the same Wi-Fi network (not a guest network).
 - [ ] On each TV, "Power On with Mobile" / network standby is enabled (note the menu path per model).
-- [ ] Start clean: delete the app, and remove "Free Remote" from each TV's Device Connection Manager.
+- [ ] Start clean: delete the app, and remove "TV Remote" (and any older "Free Remote" entry) from each TV's Device Connection Manager.
 
 ## Discovery
 
@@ -82,7 +82,7 @@ a haptic tap:
 - [ ] **Airplane mode:** turn on airplane mode — the app shows a no Wi-Fi state; turn it off — the app
       reconnects without a relaunch.
 - [ ] Background the app for a minute, return: it reconnects promptly.
-- [ ] **Local Network denied:** in Settings > Privacy & Security > Local Network, turn Free Remote off; the
+- [ ] **Local Network denied:** in Settings > Privacy & Security > Local Network, turn TV Remote off; the
       app shows the permission state with a working link to Settings. Turn it back on: discovery works again.
 
 ## Names and sync

@@ -325,7 +325,7 @@ Network permissions are needed), and an explicit **Requirements** section:
 - Remote layout B (classic), no changes.
 - App name: **Free Remote for Samsung TV**.
 - Home-screen name (`CFBundleDisplayName`): **TV Remote** (owner, 2026-11-20). The App Store name stays
-  "Free Remote for Samsung TV"; the pairing name sent to TVs stays "Free Remote".
+  "Free Remote for Samsung TV"; the pairing name sent to TVs is also "TV Remote" (2026-11-20; TVs paired earlier as "Free Remote" ask for Allow once more).
 - Icon: original artwork (TV and remote) on a Samsung-style cobalt blue. Never Samsung's logo or wordmark
   (App Review 5.2.1/5.2.2), unless Samsung grants written permission.
 - ~~Release waits for multicast entitlement approval.~~ Revised 2026-11-19: ship 1.0 without it; add

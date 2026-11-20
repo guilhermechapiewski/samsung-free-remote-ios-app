@@ -11,7 +11,7 @@ public enum ChannelEvent: Equatable, Sendable {
 
 /// Pure encoding/decoding of the Samsung remote WebSocket protocol.
 public enum RemoteProtocol {
-    public static let pairingName = "Free Remote"
+    public static let pairingName = "TV Remote"
 
     static let maxEventBytes = 256 * 1024
 
