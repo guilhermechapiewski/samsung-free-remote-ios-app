@@ -816,15 +816,128 @@ private let tvC = info("uuid:c", host: "192.168.1.12", name: "Alpha", model: "QE
         #expect(h.model.statusMessage == nil)
     }
 
-    @Test func dismissingAMessage() async {
+    /// Connected, then the connection dropped and the session is retrying (it reports `.connecting`
+    /// while it waits between attempts).
+    private func reconnecting(_ h: Harness) async {
+        await h.appear()
+        h.discovery.finish()
+        await h.connectCurrent()
+        h.sessions.last?.emit(.connecting)
+        await settle { h.model.status?.tone == .progress }
+    }
+
+    private func tick(_ h: Harness, times: Int = 1) async {
+        for _ in 0..<times {
+            await settle { h.clock.sleeperCount > 0 }
+            h.clock.advance(by: AppModel.watchInterval)
+            await drain()
+        }
+    }
+
+    @Test func watchesEveryTwoSeconds() {
+        #expect(AppModel.watchInterval == .seconds(2))
+    }
+
+    @Test func aStalledReconnectStartsOverAsSoonAsTheTVIsOn() async {
+        let h = Harness(known: [tvA], selected: tvA.id, fetchable: [tvA])
+        await reconnecting(h)
+        await tick(h, times: AppModel.stalledConnectTicks)
+        await settle { h.sessions.list.count == 2 }
+        #expect(h.sessions.list.count == 2) // a fresh attempt now, not after the session's backoff
+        #expect(h.sessions.list.first?.snapshot.disconnects == 1)
+    }
+
+    @Test func aNormalConnectAttemptIsNotInterrupted() async {
+        let h = Harness(known: [tvA], selected: tvA.id, fetchable: [tvA])
+        await reconnecting(h)
+        await tick(h, times: AppModel.stalledConnectTicks - 1)
+        #expect(h.sessions.list.count == 1)
+    }
+
+    @Test func reconnectingToATVThatIsOffSaysSo() async {
+        let h = Harness(known: [tvA], selected: tvA.id) // the TV doesn't answer
+        await reconnecting(h)
+        await tick(h)
+        await settle { h.model.status?.tone == .warning }
+        #expect(h.model.status == StatusLine(AppModel.unreachableMessage, tone: .warning))
+        // And once it answers again, the line goes back to the attempt in progress.
+        h.fetcher.answer(tvA)
+        await tick(h)
+        await settle { h.model.status?.tone == .progress }
+        #expect(h.model.status?.tone == .progress)
+    }
+
+    @Test func aStandbyAnswerShowsTheTVAsleep() async {
+        var standby = tvA
+        standby.powerState = .standby
+        let h = Harness(known: [tvA], selected: tvA.id, fetchable: [standby])
+        await reconnecting(h)
+        await tick(h)
+        await settle { h.model.tvs.first?.status == .asleep }
+        #expect(h.model.tvs.first?.status == .asleep)
+        #expect(h.sessions.list.count == 1) // asleep: Power wakes it, the app doesn't
+    }
+
+    @Test func dismissingHidesTheWholeLineNotJustTheTopMessage() async {
+        // The owner's report: dismissing "Couldn't reach the TV" revealed the same text again underneath.
+        let h = Harness(known: [tvA], selected: tvA.id)
+        await unreachableSelected(h)
+        #expect(h.model.status == StatusLine(AppModel.unreachableMessage, tone: .warning))
+        #expect(h.model.statusIsDismissable)
+        h.model.dismissStatus()
+        #expect(h.model.status == nil)
+        #expect(!h.model.statusIsDismissable)
+    }
+
+    @Test func dismissingAnEventMessageAlsoHidesTheStateLineBelowIt() async {
         let h = Harness(known: [tvA], selected: tvA.id)
         await unreachableSelected(h)
         h.model.statusMessage = AppModel.failedToWakeMessage
-        #expect(h.model.statusIsDismissable)
-        h.model.dismissStatusMessage()
-        #expect(h.model.statusMessage == nil)
-        #expect(!h.model.statusIsDismissable) // what remains describes the session; it can't be dismissed
-        #expect(h.model.status?.text == AppModel.unreachableMessage)
+        h.model.dismissStatus()
+        #expect(h.model.status == nil)
+    }
+
+    @Test func aDismissedLineComesBackWhenSomethingChanges() async throws {
+        let h = Harness(known: [tvA], selected: tvA.id)
+        await unreachableSelected(h)
+        h.model.dismissStatus()
+        let session = try #require(h.sessions.last)
+
+        session.emit(.connecting) // a new attempt is news
+        await settle { h.model.status?.tone == .progress }
+        #expect(h.model.status?.tone == .progress)
+        session.emit(.failed(.unreachable)) // and so is failing again
+        await settle { h.model.status?.tone == .warning }
+        #expect(h.model.status == StatusLine(AppModel.unreachableMessage, tone: .warning))
+    }
+
+    @Test func aNewMessageShowsAfterADismissal() async {
+        let h = Harness(known: [tvA], selected: tvA.id)
+        await unreachableSelected(h)
+        h.model.dismissStatus()
+        h.model.statusMessage = AppModel.notOnWiFiMessage
+        #expect(h.model.status?.text == AppModel.notOnWiFiMessage)
+    }
+
+    @Test func progressAndSuccessAreNotDismissable() async throws {
+        let h = Harness(known: [tvA], selected: tvA.id)
+        await h.appear()
+        await settle { h.sessions.last?.snapshot.connects == 1 }
+        h.sessions.last?.emit(.connecting)
+        await settle { h.model.status?.tone == .progress }
+        #expect(!h.model.statusIsDismissable)
+        h.sessions.last?.emit(.connected)
+        await settle { h.model.status?.tone == .success }
+        #expect(!h.model.statusIsDismissable)
+    }
+
+    @Test func choosingAnotherTVClearsADismissal() async {
+        let h = Harness(known: [tvA, tvB], selected: tvA.id)
+        await unreachableSelected(h)
+        h.model.dismissStatus()
+        h.model.select(tvB.id)
+        await settle { h.sessions.list.count == 2 }
+        #expect(h.model.status != nil) // "Connecting to Zed…"
     }
 
     // MARK: Launch

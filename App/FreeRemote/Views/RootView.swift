@@ -110,7 +110,7 @@ struct RootView: View {
                 StateCard(screen: model.screen, onAddTV: addTV)
                 if let message = model.statusMessage {
                     StatusView(StatusLine(message, tone: AppModel.tone(ofMessage: message))) {
-                        model.dismissStatusMessage()
+                        model.statusMessage = nil
                     }
                 }
             }

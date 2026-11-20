@@ -105,7 +105,10 @@ a haptic tap:
 - [ ] Press Power on a TV that takes long to boot (or turn it on with its own remote while the app shows it as
       unreachable): within a few seconds of the TV coming on, the app connects by itself, without Scan Again,
       and the "hasn't turned on yet" message goes away.
-- [ ] Warning messages such as "The TV hasn't turned on yet…" have an ✕ that dismisses them.
+- [ ] Turn the TV off with its own remote while the app is open: within a few seconds the line says it
+      couldn't reach the TV (not a long "Connecting…"); turn it back on: the app connects within seconds.
+- [ ] Warnings and information have an ✕; dismissing hides the line entirely (no second message appears
+      underneath) until something new happens, such as pressing Power or the TV coming back.
 
 ## Control Center control
 

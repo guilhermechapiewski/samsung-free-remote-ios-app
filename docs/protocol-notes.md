@@ -11,9 +11,13 @@ confirmed on real hardware; see the checklist at the end.
   access point's BSSID on the TVs seen so far; shown only when it is a MAC), the `*Support` feature flags,
   `developerMode`, `firmwareVersion` (most TVs say "Unknown"; hidden then) and the top-level `version`.
   The model year comes from the `model` code's two-digit prefix ("22_…" is 2022).
-  While the selected TV's session has failed as unreachable and the app is in front, the app GETs this
-  endpoint every 3 s and reconnects once the TV answers `PowerState: on` (a TV that boots after the power
-  toggle stopped waiting, or one turned on with its own remote). A `standby` answer is ignored.
+  While the selected TV is not connected (its session failed as unreachable, or is retrying after a drop)
+  and the app is in front, the app GETs this endpoint every 2 s. When the TV answers `PowerState: on`, a
+  failed session reconnects, and a retry stuck waiting out its backoff (still connecting after 4 checks)
+  starts over at once; so a TV that boots late or is turned on with its own remote connects within seconds.
+  A `standby` answer only marks the TV asleep; no answer while retrying shows "Couldn't reach the TV"
+  instead of "Connecting…". The session's own retries (backoff 0.5 s doubling to 30 s, 5 failures, 5 s
+  connect timeout) would otherwise take about 40 s to give up.
 - `wss://<host>:8002/api/v2/channels/samsung.remote.control?name=<base64 name>[&token=<token>]` — the
   remote-control channel. The pairing name sent is the constant `TV Remote` (base64 encoded).
   Port 8001 is never used for control.
