@@ -19,8 +19,18 @@ jobs:
       - name: Kit tests
         run: swift test --package-path SamsungTVKit
 
+  # Unit and UI tests run as separate jobs in parallel; the UI tests take most of the time.
   app-tests:
     runs-on: xcode-27
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - suite: unit
+            only: FreeRemoteTests
+          - suite: ui
+            only: FreeRemoteUITests
+    name: app-tests (${{ matrix.suite }})
     steps:
       - uses: actions/checkout@v4
       - name: Select newest Xcode
@@ -29,6 +39,7 @@ jobs:
           xcodebuild -version
           swift --version
       - name: Build for device (unsigned)
+        if: matrix.suite == 'unit'
         run: >
           xcodebuild build -project FreeRemote.xcodeproj -scheme FreeRemote
           -destination generic/platform=iOS CODE_SIGNING_ALLOWED=NO
@@ -53,9 +64,10 @@ jobs:
           echo "SIM_UDID=$UDID" >> "$GITHUB_ENV"
       # Simulator builds are ad-hoc signed without a team; CODE_SIGNING_ALLOWED=NO would strip the
       # entitlements the keychain needs, so it is only used for the device build above.
-      - name: App tests
+      - name: App ${{ matrix.suite }} tests
         run: >
           xcodebuild test -project FreeRemote.xcodeproj -scheme FreeRemote
           -destination "id=$SIM_UDID"
+          -only-testing:${{ matrix.only }}
           -parallel-testing-enabled NO
           -retry-tests-on-failure -test-iterations 2

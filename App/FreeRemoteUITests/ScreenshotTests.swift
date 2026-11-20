@@ -1,9 +1,12 @@
 import XCTest
 
 /// Captures screenshots of demo mode (fictional TVs only). Run by `scripts/screenshots.sh`,
-/// which exports the attachments below.
+/// which exports the attachments below; skipped otherwise.
 final class ScreenshotTests: XCTestCase {
-    override func setUp() {
+    override func setUpWithError() throws {
+        // Skipped in normal test runs (they only take pictures); the script sets this.
+        try XCTSkipUnless(ProcessInfo.processInfo.environment["FREE_REMOTE_SCREENSHOTS"] == "1",
+                          "Run by scripts/screenshots.sh")
         continueAfterFailure = false
     }
 

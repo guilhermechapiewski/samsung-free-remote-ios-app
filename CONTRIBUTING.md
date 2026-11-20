@@ -58,6 +58,10 @@ xcodebuild test -project FreeRemote.xcodeproj -scheme FreeRemote \
   -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=27.0' -parallel-testing-enabled NO
 ```
 
+While iterating, add `-only-testing:FreeRemoteTests` to run only the app's unit tests, which finish in under a
+second after the build; the UI tests take about two minutes, so run the full suite before opening a pull
+request.
+
 Real-TV behaviour is checked by hand with [`docs/testing/manual-checklist.md`](docs/testing/manual-checklist.md)
 (run the parts your change touches) and the `tvprobe` tool
 (`swift build --package-path SamsungTVKit --product tvprobe`).

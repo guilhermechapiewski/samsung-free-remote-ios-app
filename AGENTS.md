@@ -38,7 +38,12 @@ xcodebuild test -project FreeRemote.xcodeproj -scheme FreeRemote \
   -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=27.0' -parallel-testing-enabled NO
 ```
 
-- Use `OS=27.0`: newer simulator runtimes may not have that device. Keep `-parallel-testing-enabled NO`.
+- Use `OS=27.0`: newer simulator runtimes may not have that device. Keep `-parallel-testing-enabled NO`
+  (parallel simulator clones were measured slower for the UI tests).
+- While iterating, add `-only-testing:FreeRemoteTests` to run only the app's unit tests (under a second after
+  the build); the UI tests take about two minutes, so run them before committing. Each UI test launches the
+  app, so extend an existing flow rather than adding a test per check.
+- `ScreenshotTests` skip unless `scripts/screenshots.sh` runs them.
 - The kit's integration tests run a fake TV on fixed ports 8001/8002 on 127.0.0.1; they fail if something else
   uses those ports.
 - `swift run --package-path SamsungTVKit tvprobe` is a command-line probe for real TVs. Pairing pops an Allow

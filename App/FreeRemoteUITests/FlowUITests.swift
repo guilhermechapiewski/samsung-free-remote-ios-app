@@ -62,6 +62,57 @@ final class FlowUITests: XCTestCase {
 
         app.buttons["Channel down"].tap()
         waitForLastKey(app, "KEY_CHDOWN", count: 3)
+
+        // Number pad.
+        app.buttons["Number pad"].tap()
+        let five = app.buttons["5"]
+        XCTAssertTrue(five.waitForExistence(timeout: 5))
+        five.tap()
+        waitForLastKey(app, "KEY_5", count: 4)
+        app.buttons["0"].tap()
+        waitForLastKey(app, "KEY_0", count: 5)
+        app.buttons["Done"].tap()
+        XCTAssertTrue(app.buttons["Volume up"].waitForExistence(timeout: 5))
+    }
+
+    /// The TV menu, end to end in one launch (each launch costs seconds): closing by tapping outside, TV
+    /// Details, Scan Again (the menu stays open), then choosing another TV.
+    @MainActor
+    func testTVMenu() {
+        let app = launch()
+        waitForRemote(app)
+        let picker = app.buttons["TV picker"]
+        let close = app.buttons["Close menu"]
+
+        picker.tap()
+        XCTAssertTrue(app.buttons["Send Feedback or Report a Bug"].waitForExistence(timeout: 5))
+        attachScreenshot(app, "menu")
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.95)).tap()
+        XCTAssertTrue(close.waitForNonExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Volume up"].isHittable)
+
+        // TV Details: each row reads as one element, "label, value".
+        picker.tap()
+        app.buttons["TV Details"].tap()
+        XCTAssertTrue(app.staticTexts["IP Address, 10.0.0.21"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Last Seen, Just now"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Resolution, 3840 × 2160 (4K)"].exists)
+        attachScreenshot(app, "tv-details")
+        app.buttons["Done"].tap()
+        XCTAssertTrue(picker.waitForExistence(timeout: 5))
+
+        // Scan Again keeps the menu open; its header shows the progress, then the result.
+        picker.tap()
+        app.buttons["Scan Again"].tap()
+        XCTAssertTrue(app.staticTexts["Looking for TVs…"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Scanning…"].exists)
+        XCTAssertTrue(app.staticTexts["No new TVs found"].waitForExistence(timeout: 10))
+        attachScreenshot(app, "scan-result")
+
+        // Choosing another TV closes the menu.
+        app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Bedroom'")).firstMatch.tap()
+        XCTAssertTrue(close.waitForNonExistence(timeout: 5))
+        XCTAssertTrue(picker.waitForValue(containing: "Bedroom", timeout: 5))
     }
 
     @MainActor
@@ -84,21 +135,6 @@ final class FlowUITests: XCTestCase {
 
         let renamed = NSPredicate(format: "value BEGINSWITH 'Den'")
         wait(for: [expectation(for: renamed, evaluatedWith: picker)], timeout: 5)
-    }
-
-    @MainActor
-    func testNumberPadSendsDigits() {
-        let app = launch()
-        waitForRemote(app)
-        app.buttons["Number pad"].tap()
-        let five = app.buttons["5"]
-        XCTAssertTrue(five.waitForExistence(timeout: 5))
-        five.tap()
-        waitForLastKey(app, "KEY_5", count: 1)
-        app.buttons["0"].tap()
-        waitForLastKey(app, "KEY_0", count: 2)
-        app.buttons["Done"].tap()
-        XCTAssertTrue(app.buttons["Volume up"].waitForExistence(timeout: 5))
     }
 
     @MainActor
@@ -139,62 +175,6 @@ final class FlowUITests: XCTestCase {
         for _ in 0..<6 where !feedback.isHittable { panel.swipeUp() }
         XCTAssertTrue(feedback.isHittable, "the last row must be reachable by scrolling")
         attachScreenshot(app, "menu-large-text-scrolled")
-    }
-
-    @MainActor
-    func testTappingOutsideClosesMenu() {
-        let app = launch()
-        waitForRemote(app)
-        app.buttons["TV picker"].tap()
-        XCTAssertTrue(app.buttons["Close menu"].waitForExistence(timeout: 5))
-        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.95)).tap()
-        XCTAssertFalse(app.buttons["Close menu"].waitForExistence(timeout: 2))
-        XCTAssertTrue(app.buttons["Volume up"].isHittable)
-    }
-
-    @MainActor
-    func testScanAgainShowsProgressAndResult() {
-        let app = launch()
-        waitForRemote(app)
-        let picker = app.buttons["TV picker"]
-        picker.tap()
-        let scanAgain = app.buttons["Scan Again"]
-        XCTAssertTrue(scanAgain.waitForExistence(timeout: 5))
-        scanAgain.tap()
-        // The menu stays open while scanning; its header shows the progress, then the result.
-        XCTAssertTrue(app.staticTexts["Looking for TVs…"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.buttons["Scanning…"].exists)
-        XCTAssertTrue(app.staticTexts["No new TVs found"].waitForExistence(timeout: 10))
-        attachScreenshot(app, "scan-result")
-        app.buttons["Close menu"].tap()
-        XCTAssertTrue(picker.waitForValue(containing: "", excluding: "No new TVs found", timeout: 10))
-    }
-
-    @MainActor
-    func testTVDetailsShowsLiveDetails() {
-        let app = launch()
-        waitForRemote(app)
-        app.buttons["TV picker"].tap()
-        app.buttons["TV Details"].tap()
-        // Each row reads as one element: "label, value".
-        XCTAssertTrue(app.staticTexts["IP Address, 10.0.0.21"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["Last Seen, Just now"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["Resolution, 3840 × 2160 (4K)"].exists)
-        attachScreenshot(app, "tv-details")
-        app.buttons["Done"].tap()
-        XCTAssertTrue(app.buttons["TV picker"].waitForExistence(timeout: 5))
-    }
-
-    @MainActor
-    func testMenuSelectsAnotherTVAndCloses() {
-        let app = launch()
-        waitForRemote(app)
-        app.buttons["TV picker"].tap()
-        XCTAssertTrue(app.buttons["Send Feedback or Report a Bug"].waitForExistence(timeout: 5))
-        attachScreenshot(app, "menu")
-        app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Bedroom'")).firstMatch.tap()
-        XCTAssertFalse(app.buttons["Close menu"].waitForExistence(timeout: 2))
-        XCTAssertTrue(app.buttons["TV picker"].waitForValue(containing: "Bedroom", timeout: 5))
     }
 
     private func attachScreenshot(_ app: XCUIApplication, _ name: String) {

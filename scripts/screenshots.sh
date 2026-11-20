@@ -51,7 +51,8 @@ for entry in "${DEVICES[@]}"; do
     --wifiMode active --wifiBars 3 --cellularMode notSupported
 
   bundle="$WORK/$slug.xcresult"
-  xcodebuild test -project FreeRemote.xcodeproj -scheme FreeRemote \
+  # TEST_RUNNER_-prefixed variables reach the tests without the prefix; ScreenshotTests skip without it.
+  TEST_RUNNER_FREE_REMOTE_SCREENSHOTS=1 xcodebuild test -project FreeRemote.xcodeproj -scheme FreeRemote \
     -destination "platform=iOS Simulator,id=$udid" \
     -only-testing:FreeRemoteUITests/ScreenshotTests \
     -resultBundlePath "$bundle" >"$WORK/$slug.log" 2>&1 \
