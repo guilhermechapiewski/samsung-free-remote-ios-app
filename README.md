@@ -1,4 +1,4 @@
-# Simple Remote for Samsung TV
+# Simple TV Remote for Samsung
 
 A free, open-source iPhone app that finds Samsung Smart TVs (Tizen) on your Wi-Fi network and controls them
 like the physical remote. No ads, no accounts, no tracking: the app only talks to TVs on your local network.

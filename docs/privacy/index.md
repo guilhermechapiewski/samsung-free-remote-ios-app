@@ -2,11 +2,11 @@
 title: Privacy Policy
 ---
 
-# Privacy Policy — Simple Remote for Samsung TV
+# Privacy Policy — Simple TV Remote for Samsung
 
 Effective date: 18 November 2026
 
-Simple Remote for Samsung TV ("the app") is a free, open-source iPhone app that controls Samsung Smart TVs on
+Simple TV Remote for Samsung ("the app") is a free, open-source iPhone app that controls Samsung Smart TVs on
 your local network. **The app does not collect any data.**
 
 ## What the app does not do

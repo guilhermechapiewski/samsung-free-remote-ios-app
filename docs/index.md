@@ -1,8 +1,8 @@
 ---
-title: Simple Remote for Samsung TV
+title: Simple TV Remote for Samsung
 ---
 
-# Simple Remote for Samsung TV
+# Simple TV Remote for Samsung
 
 A calm, fast iPhone remote for Samsung Smart TVs (Tizen). Open it and your TV is there: it finds your TV on your
 Wi-Fi by itself, connects in seconds, and always shows what's happening. Everything the remote that came with
