@@ -51,7 +51,7 @@ Keychain on the device; TV names you choose sync through your own iCloud. See th
 You need macOS with **Xcode 27.2 or later** and the iOS 27.0 simulator runtime.
 
 1. Clone the repository.
-2. Open `FreeRemote.xcodeproj` and run the `FreeRemote` scheme on a simulator. No signing setup is needed;
+2. Open `SamsungRemote.xcodeproj` and run the `SamsungRemote` scheme on a simulator. No signing setup is needed;
    use demo mode (launch argument `-demo`, fictional TVs) to try the app without a TV.
 
 To run it on your own iPhone, copy `Config/Local.example.xcconfig` to `Config/Local.xcconfig` (git-ignored)
@@ -60,7 +60,7 @@ Xcode's Signing & Capabilities, which writes the team into the project file; the
 there. The app uses iCloud key-value storage
 for TV names, which needs a paid Apple Developer Program membership (free personal teams cannot sign it).
 
-Leave `FREE_REMOTE_MULTICAST` off. It switches to SSDP discovery and broadcast Wake-on-LAN, which need a
+Leave `SAMSUNG_REMOTE_MULTICAST` off. It switches to SSDP discovery and broadcast Wake-on-LAN, which need a
 networking entitlement that Apple grants per team; the "Check entitlements" build phase keeps the setting and
 the signed entitlements in step. See [`docs/protocol-notes.md`](docs/protocol-notes.md) for how discovery and
 power-on work with and without it.
@@ -72,7 +72,7 @@ power-on work with and without it.
 swift test --package-path SamsungTVKit
 
 # App unit and UI tests
-xcodebuild test -project FreeRemote.xcodeproj -scheme FreeRemote \
+xcodebuild test -project SamsungRemote.xcodeproj -scheme SamsungRemote \
   -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=27.0' -parallel-testing-enabled NO
 ```
 
@@ -88,10 +88,10 @@ xcodebuild test -project FreeRemote.xcodeproj -scheme FreeRemote \
 | Path | Contents |
 |---|---|
 | `SamsungTVKit/` | Swift package: discovery, device info, pairing and the control channel, power, Wake-on-LAN; `tvprobe` CLI |
-| `App/FreeRemote/` | SwiftUI app: app model, views, stores (known TVs, iCloud labels, Keychain), demo mode, assets |
-| `App/FreeRemoteControls/` | WidgetKit extension with the Control Center control |
+| `App/SamsungRemote/` | SwiftUI app: app model, views, stores (known TVs, iCloud labels, Keychain), demo mode, assets |
+| `App/SamsungRemoteControls/` | WidgetKit extension with the Control Center control |
 | `App/Shared/` | Code in both the app and the extension (the "Open TV Remote" App Intent) |
-| `App/FreeRemoteTests/`, `App/FreeRemoteUITests/` | App unit tests and UI/screenshot tests |
+| `App/SamsungRemoteTests/`, `App/SamsungRemoteUITests/` | App unit tests and UI/screenshot tests |
 | `Config/` | Shared build settings; your local signing settings |
 | `docs/` | Protocol notes, the app's privacy policy, real-device test checklist, images |
 | `scripts/` | Screenshot and icon scripts |

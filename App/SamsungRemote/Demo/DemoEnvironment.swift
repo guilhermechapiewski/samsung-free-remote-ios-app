@@ -42,7 +42,7 @@ enum DemoEnvironment {
     static let bedroom = TVID(rawValue: "demo:bedroom")
     static let patio = TVID(rawValue: "demo:patio")
 
-    private static let defaultsSuite = "FreeRemote.demo"
+    private static let defaultsSuite = "SamsungRemote.demo"
 
     /// `keyLog`, when given, records every key the demo sessions send.
     static func make(_ scenario: Scenario = .remote, keyLog: DemoKeyLog? = nil) -> AppEnvironment {

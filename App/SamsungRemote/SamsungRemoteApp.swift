@@ -1,7 +1,7 @@
 import SwiftUI
 
 @main
-struct FreeRemoteApp: App {
+struct SamsungRemoteApp: App {
     @State private var model: AppModel
     /// Set only in demo mode: the keys sent, shown to UI tests.
     private let demoKeyLog: DemoKeyLog?

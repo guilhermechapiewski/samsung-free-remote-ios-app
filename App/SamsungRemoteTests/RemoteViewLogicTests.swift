@@ -1,7 +1,7 @@
 import Foundation
 import Testing
 import SamsungTVKit
-@testable import FreeRemote
+@testable import SamsungRemote
 
 @MainActor
 @Suite struct RemoteViewLogicTests {

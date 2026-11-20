@@ -34,13 +34,13 @@ repository, issues or pull requests.
 ```sh
 swift test --package-path SamsungTVKit
 
-xcodebuild test -project FreeRemote.xcodeproj -scheme FreeRemote \
+xcodebuild test -project SamsungRemote.xcodeproj -scheme SamsungRemote \
   -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=27.0' -parallel-testing-enabled NO
 ```
 
 - Use `OS=27.0`: newer simulator runtimes may not have that device. Keep `-parallel-testing-enabled NO`
   (parallel simulator clones were measured slower for the UI tests).
-- While iterating, add `-only-testing:FreeRemoteTests` to run only the app's unit tests (under a second after
+- While iterating, add `-only-testing:SamsungRemoteTests` to run only the app's unit tests (under a second after
   the build); the UI tests take about two minutes, so run them before committing. Each UI test launches the
   app, so extend an existing flow rather than adding a test per check.
 - `ScreenshotTests` skip unless `scripts/screenshots.sh` runs them.
@@ -51,9 +51,9 @@ xcodebuild test -project FreeRemote.xcodeproj -scheme FreeRemote \
 
 ## Multicast entitlement
 
-`FREE_REMOTE_MULTICAST` (`YES`/`NO`, default `NO`, set in `Config/Local.xcconfig`) selects the entitlements
-file and tells the app (Info.plist `FRMulticastEnabled`) whether SSDP discovery and broadcast Wake-on-LAN are
-available. Never set `FREE_REMOTE_ENTITLEMENTS` directly; the "Check entitlements" build phase fails the build
+`SAMSUNG_REMOTE_MULTICAST` (`YES`/`NO`, default `NO`, set in `Config/Local.xcconfig`) selects the entitlements
+file and tells the app (Info.plist `SRMulticastEnabled`) whether SSDP discovery and broadcast Wake-on-LAN are
+available. Never set `SAMSUNG_REMOTE_ENTITLEMENTS` directly; the "Check entitlements" build phase fails the build
 if the two disagree. Without the entitlement the app uses Bonjour discovery and a unicast wake packet. Leave it `NO`;
 only the maintainer's builds can use `YES`. See `docs/protocol-notes.md`.
 

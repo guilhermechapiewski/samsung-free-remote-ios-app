@@ -2,7 +2,7 @@ import Foundation
 import Synchronization
 import Testing
 import SamsungTVKit
-@testable import FreeRemote
+@testable import SamsungRemote
 
 // MARK: - Helpers
 
@@ -17,7 +17,7 @@ private let tvB = TVID(rawValue: "uuid:test-tv-b")
 
 /// Runs `body` against a keychain store with a unique service, deleting its items afterwards.
 private func withKeychainStore(_ body: (KeychainCredentialStore) throws -> Void) rethrows {
-    let store = KeychainCredentialStore(service: "FreeRemoteTests.\(UUID().uuidString)")
+    let store = KeychainCredentialStore(service: "SamsungRemoteTests.\(UUID().uuidString)")
     defer {
         store.delete(tvA)
         store.delete(tvB)
@@ -130,7 +130,7 @@ private final class InMemoryKeyValueStore: UbiquitousKeyValueStoring, Sendable {
 @Suite struct FileKnownTVStoreTests {
     private func tempURL() -> URL {
         FileManager.default.temporaryDirectory
-            .appending(path: "FreeRemoteTests-\(UUID().uuidString)", directoryHint: .isDirectory)
+            .appending(path: "SamsungRemoteTests-\(UUID().uuidString)", directoryHint: .isDirectory)
             .appending(path: "known-tvs.json")
     }
 

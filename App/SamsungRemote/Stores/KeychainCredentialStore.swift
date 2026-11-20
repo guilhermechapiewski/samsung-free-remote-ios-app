@@ -10,10 +10,12 @@ struct KeychainCredentialStore: CredentialStore {
         let status: OSStatus
     }
 
-    private static let logger = Logger(subsystem: "FreeRemote", category: "KeychainCredentialStore")
+    private static let logger = Logger(subsystem: "SamsungRemote", category: "KeychainCredentialStore")
 
     let service: String
 
+    /// The Keychain service keeps the app's original internal name on purpose: renaming it would orphan
+    /// every stored pairing (each TV would ask for Allow again).
     init(service: String = "FreeRemote.credentials") {
         self.service = service
     }

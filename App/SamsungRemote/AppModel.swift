@@ -79,7 +79,7 @@ final class AppModel {
     /// How long a Scan Again result stays on screen.
     static let scanResultDuration: Duration = .seconds(3)
 
-    private static let log = Logger(subsystem: "FreeRemote", category: "AppModel")
+    private static let log = Logger(subsystem: "SamsungRemote", category: "AppModel")
 
     private(set) var tvs: [TVListItem] = []
     private(set) var selectedID: TVID?

@@ -5,7 +5,7 @@ import XCTest
 final class ScreenshotTests: XCTestCase {
     override func setUpWithError() throws {
         // Skipped in normal test runs (they only take pictures); the script sets this.
-        try XCTSkipUnless(ProcessInfo.processInfo.environment["FREE_REMOTE_SCREENSHOTS"] == "1",
+        try XCTSkipUnless(ProcessInfo.processInfo.environment["SAMSUNG_REMOTE_SCREENSHOTS"] == "1",
                           "Run by scripts/screenshots.sh")
         continueAfterFailure = false
     }

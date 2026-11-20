@@ -1,7 +1,7 @@
 import Foundation
 import SamsungTVKit
 import Testing
-@testable import FreeRemote
+@testable import SamsungRemote
 
 @MainActor
 @Suite struct TVDetailsContentTests {

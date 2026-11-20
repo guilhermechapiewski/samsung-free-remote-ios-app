@@ -3,7 +3,7 @@ import Synchronization
 import Testing
 import SamsungTVKit
 import SwiftUI
-@testable import FreeRemote
+@testable import SamsungRemote
 
 // MARK: - Fakes
 
@@ -671,9 +671,9 @@ private let tvC = info("uuid:c", host: "192.168.1.12", name: "Alpha", model: "QE
     }
 
     @Test func infoPlistMulticastFlagIsExpanded() {
-        // FRMulticastEnabled must be the expanded FREE_REMOTE_MULTICAST build setting (YES or NO);
+        // SRMulticastEnabled must be the expanded SAMSUNG_REMOTE_MULTICAST build setting (YES or NO);
         // whether it matches the entitlements is enforced by the "Check entitlements" build phase.
-        let raw = Bundle.main.object(forInfoDictionaryKey: "FRMulticastEnabled") as? String
+        let raw = Bundle.main.object(forInfoDictionaryKey: "SRMulticastEnabled") as? String
         #expect(raw == "YES" || raw == "NO")
         #expect(AppEnvironment.buildHasMulticastEntitlement == (raw == "YES"))
     }

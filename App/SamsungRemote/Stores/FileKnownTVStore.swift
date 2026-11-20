@@ -8,7 +8,7 @@ struct FileKnownTVStore: Sendable {
         URL.applicationSupportDirectory.appending(path: "known-tvs.json")
     }
 
-    private static let logger = Logger(subsystem: "FreeRemote", category: "FileKnownTVStore")
+    private static let logger = Logger(subsystem: "SamsungRemote", category: "FileKnownTVStore")
 
     let url: URL
 

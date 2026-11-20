@@ -18,7 +18,7 @@ struct RemoteControl: ControlWidget {
 }
 
 @main
-struct FreeRemoteControls: WidgetBundle {
+struct SamsungRemoteControls: WidgetBundle {
     var body: some Widget {
         RemoteControl()
     }

@@ -1,7 +1,7 @@
 import SwiftUI
 import Testing
 import UIKit
-@testable import FreeRemote
+@testable import SamsungRemote
 
 @MainActor
 @Suite struct StatusLineTests {

@@ -15,9 +15,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "F0000000000000000000E001"
-               BuildableName = "FreeRemote.app"
-               BlueprintName = "FreeRemote"
-               ReferencedContainer = "container:FreeRemote.xcodeproj">
+               BuildableName = "SamsungRemote.app"
+               BlueprintName = "SamsungRemote"
+               ReferencedContainer = "container:SamsungRemote.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -35,9 +35,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "F0000000000000000000E002"
-               BuildableName = "FreeRemoteTests.xctest"
-               BlueprintName = "FreeRemoteTests"
-               ReferencedContainer = "container:FreeRemote.xcodeproj">
+               BuildableName = "SamsungRemoteTests.xctest"
+               BlueprintName = "SamsungRemoteTests"
+               ReferencedContainer = "container:SamsungRemote.xcodeproj">
             </BuildableReference>
          </TestableReference>
          <TestableReference
@@ -46,9 +46,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "F0000000000000000000E003"
-               BuildableName = "FreeRemoteUITests.xctest"
-               BlueprintName = "FreeRemoteUITests"
-               ReferencedContainer = "container:FreeRemote.xcodeproj">
+               BuildableName = "SamsungRemoteUITests.xctest"
+               BlueprintName = "SamsungRemoteUITests"
+               ReferencedContainer = "container:SamsungRemote.xcodeproj">
             </BuildableReference>
          </TestableReference>
       </Testables>
@@ -68,9 +68,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "F0000000000000000000E001"
-            BuildableName = "FreeRemote.app"
-            BlueprintName = "FreeRemote"
-            ReferencedContainer = "container:FreeRemote.xcodeproj">
+            BuildableName = "SamsungRemote.app"
+            BlueprintName = "SamsungRemote"
+            ReferencedContainer = "container:SamsungRemote.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </LaunchAction>
@@ -85,9 +85,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "F0000000000000000000E001"
-            BuildableName = "FreeRemote.app"
-            BlueprintName = "FreeRemote"
-            ReferencedContainer = "container:FreeRemote.xcodeproj">
+            BuildableName = "SamsungRemote.app"
+            BlueprintName = "SamsungRemote"
+            ReferencedContainer = "container:SamsungRemote.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </ProfileAction>

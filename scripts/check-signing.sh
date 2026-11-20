@@ -7,6 +7,6 @@
 # everyone who builds the project.
 project="$PROJECT_FILE_PATH/project.pbxproj"
 if grep -nE 'DEVELOPMENT_TEAM = [^;"]+;|"?PRODUCT_BUNDLE_IDENTIFIER(\[[^]]*\])?"? = [^$"][^;]*;' "$project" >/dev/null; then
-    echo "error: Signing settings were written into FreeRemote.xcodeproj (DEVELOPMENT_TEAM or a fixed PRODUCT_BUNDLE_IDENTIFIER), probably by picking a team in Signing & Capabilities. Discard that change to the project file (git checkout FreeRemote.xcodeproj) and set DEVELOPMENT_TEAM and PRODUCT_BUNDLE_IDENTIFIER in Config/Local.xcconfig instead (copy Config/Local.example.xcconfig)."
+    echo "error: Signing settings were written into SamsungRemote.xcodeproj (DEVELOPMENT_TEAM or a fixed PRODUCT_BUNDLE_IDENTIFIER), probably by picking a team in Signing & Capabilities. Discard that change to the project file (git checkout SamsungRemote.xcodeproj) and set DEVELOPMENT_TEAM and PRODUCT_BUNDLE_IDENTIFIER in Config/Local.xcconfig instead (copy Config/Local.example.xcconfig)."
     exit 1
 fi

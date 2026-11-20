@@ -11,7 +11,7 @@ let size = 1024
 let outputDirectory = URL(fileURLWithPath: CommandLine.arguments[0])
     .deletingLastPathComponent()
     .deletingLastPathComponent()
-    .appendingPathComponent("App/FreeRemote/Resources/Assets.xcassets/AppIcon.appiconset")
+    .appendingPathComponent("App/SamsungRemote/Resources/Assets.xcassets/AppIcon.appiconset")
 
 struct Palette {
     var backgroundTop: CGColor

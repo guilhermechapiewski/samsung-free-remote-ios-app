@@ -1,6 +1,6 @@
 import AppIntents
 import Testing
-@testable import FreeRemote
+@testable import SamsungRemote
 
 @Suite struct OpenRemoteIntentTests {
     @Test func opensTheApp() async throws {

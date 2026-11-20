@@ -1,7 +1,7 @@
 import Synchronization
 import Testing
 import SamsungTVKit
-@testable import FreeRemote
+@testable import SamsungRemote
 
 /// Records every key sent by a `RepeatController`.
 private final class SendLog: Sendable {

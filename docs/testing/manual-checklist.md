@@ -2,7 +2,7 @@
 
 Checks that need a real iPhone and real Samsung TVs. Contributors: run the sections your change touches, on
 whatever TVs you have, and list the TV model years in your pull request. Run each step once per TV unless it
-says otherwise. Steps marked **[no multicast]** apply to normal builds (`FREE_REMOTE_MULTICAST = NO`, the
+says otherwise. Steps marked **[no multicast]** apply to normal builds (`SAMSUNG_REMOTE_MULTICAST = NO`, the
 default); steps marked **[multicast]** apply only to builds signed with the multicast networking entitlement.
 
 **Record results privately.** Do not commit IP addresses, MAC addresses, serial numbers, device IDs, network

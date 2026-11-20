@@ -54,11 +54,11 @@ a placeholder.
 ```sh
 swift test --package-path SamsungTVKit
 
-xcodebuild test -project FreeRemote.xcodeproj -scheme FreeRemote \
+xcodebuild test -project SamsungRemote.xcodeproj -scheme SamsungRemote \
   -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=27.0' -parallel-testing-enabled NO
 ```
 
-While iterating, add `-only-testing:FreeRemoteTests` to run only the app's unit tests, which finish in under a
+While iterating, add `-only-testing:SamsungRemoteTests` to run only the app's unit tests, which finish in under a
 second after the build; the UI tests take about two minutes, so run the full suite before opening a pull
 request.
 

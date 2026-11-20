@@ -1,8 +1,8 @@
-// Shared build settings for all FreeRemote targets.
+// Shared build settings for all SamsungRemote targets.
 // Owner-specific signing values live in the git-ignored Local.xcconfig (see Local.example.xcconfig),
 // included at the end so they override these defaults.
 
-PRODUCT_BUNDLE_IDENTIFIER = org.example.FreeRemote
+PRODUCT_BUNDLE_IDENTIFIER = org.example.SamsungRemote
 // The app and its Control Center extension must share these (the App Store rejects a mismatch); bump
 // them here only.
 MARKETING_VERSION = 1.0
@@ -18,11 +18,11 @@ DEVELOPMENT_TEAM =
 
 // YES only for builds signed by a team that Apple has granted the multicast networking entitlement
 // (com.apple.developer.networking.multicast). It picks the entitlements file and tells the app, via
-// FRMulticastEnabled in Info.plist, to use SSDP discovery and broadcast Wake-on-LAN. Set it in
+// SRMulticastEnabled in Info.plist, to use SSDP discovery and broadcast Wake-on-LAN. Set it in
 // Local.xcconfig, never here.
-FREE_REMOTE_MULTICAST = NO
-FREE_REMOTE_ENTITLEMENTS_NO = App/FreeRemote/FreeRemote.entitlements
-FREE_REMOTE_ENTITLEMENTS_YES = App/FreeRemote/FreeRemote+Multicast.entitlements
-FREE_REMOTE_ENTITLEMENTS = $(FREE_REMOTE_ENTITLEMENTS_$(FREE_REMOTE_MULTICAST))
+SAMSUNG_REMOTE_MULTICAST = NO
+SAMSUNG_REMOTE_ENTITLEMENTS_NO = App/SamsungRemote/SamsungRemote.entitlements
+SAMSUNG_REMOTE_ENTITLEMENTS_YES = App/SamsungRemote/SamsungRemote+Multicast.entitlements
+SAMSUNG_REMOTE_ENTITLEMENTS = $(SAMSUNG_REMOTE_ENTITLEMENTS_$(SAMSUNG_REMOTE_MULTICAST))
 
 #include? "Local.xcconfig"

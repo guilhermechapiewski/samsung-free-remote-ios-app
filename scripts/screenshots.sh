@@ -52,9 +52,9 @@ for entry in "${DEVICES[@]}"; do
 
   bundle="$WORK/$slug.xcresult"
   # TEST_RUNNER_-prefixed variables reach the tests without the prefix; ScreenshotTests skip without it.
-  TEST_RUNNER_FREE_REMOTE_SCREENSHOTS=1 xcodebuild test -project FreeRemote.xcodeproj -scheme FreeRemote \
+  TEST_RUNNER_SAMSUNG_REMOTE_SCREENSHOTS=1 xcodebuild test -project SamsungRemote.xcodeproj -scheme SamsungRemote \
     -destination "platform=iOS Simulator,id=$udid" \
-    -only-testing:FreeRemoteUITests/ScreenshotTests \
+    -only-testing:SamsungRemoteUITests/ScreenshotTests \
     -resultBundlePath "$bundle" >"$WORK/$slug.log" 2>&1 \
     || { tail -30 "$WORK/$slug.log" >&2; fail "ScreenshotTests failed on $name."; }
 
