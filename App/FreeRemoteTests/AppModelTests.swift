@@ -494,7 +494,7 @@ private let tvC = info("uuid:c", host: "192.168.1.12", name: "Alpha", model: "QE
 
         h.model.press(.up)
         await drain()
-        #expect(h.model.statusMessage != nil)
+        #expect(h.model.statusEvent != nil)
         #expect(try #require(h.sessions.last).snapshot.sent.isEmpty)
 
         // Once connected, presses go through and the message clears.
@@ -503,13 +503,13 @@ private let tvC = info("uuid:c", host: "192.168.1.12", name: "Alpha", model: "QE
         h.model.press(.up)
         await settle { h.sessions.last?.snapshot.sent == ["KEY_UP"] }
         #expect(h.sessions.last?.snapshot.sent == ["KEY_UP"])
-        #expect(h.model.statusMessage == nil)
+        #expect(h.model.statusEvent == nil)
     }
 
     @Test func pressWithNoTVSelectedShowsReason() {
         let h = Harness()
         h.model.press(.enter)
-        #expect(h.model.statusMessage != nil)
+        #expect(h.model.statusEvent != nil)
     }
 
     @Test func forgetRemovesEverything() async throws {
@@ -628,10 +628,10 @@ private let tvC = info("uuid:c", host: "192.168.1.12", name: "Alpha", model: "QE
         await h.appear()
         await settle { h.sessions.last?.snapshot.connects == 1 }
         h.sessions.last?.emit(.failed(.unreachable))
-        await settle { h.model.statusMessage != nil }
+        await settle { h.model.statusEvent != nil }
         #expect(h.model.screen == .ready)
         #expect(h.model.tvs.first?.status == .unreachable)
-        #expect(h.model.statusMessage != nil)
+        #expect(h.model.statusEvent != nil)
     }
 
     @Test func rescanRetriesFailedSession() async throws {
@@ -657,11 +657,7 @@ private let tvC = info("uuid:c", host: "192.168.1.12", name: "Alpha", model: "QE
         #expect(h.model.powerBusy)
         await settle { !h.model.powerBusy }
         #expect(h.power.calls.withLock { $0 } == [tvA.id])
-        #expect(h.model.statusMessage
-            == "The TV hasn't turned on yet. If it does, it connects here on its own. If it stays off, check "
-            + "that “Power On with Mobile” is on (Settings → Connection → Network → Expert Settings → Power On "
-            + "with Mobile; on some TVs: Settings → General → Network → Expert Settings) or use the TV's own "
-            + "remote.")
+        #expect(h.model.statusEvent == .notTurnedOn)
     }
 
     @Test func powerFailureMessageIsTheSameWithoutMulticast() async {
@@ -671,7 +667,7 @@ private let tvC = info("uuid:c", host: "192.168.1.12", name: "Alpha", model: "QE
         await settle { h.sessions.last?.snapshot.connects == 1 }
         h.model.togglePower()
         await settle { !h.model.powerBusy }
-        #expect(h.model.statusMessage == AppModel.failedToWakeMessage)
+        #expect(h.model.statusEvent == StatusLine.notTurnedOn)
     }
 
     @Test func infoPlistMulticastFlagIsExpanded() {
@@ -706,7 +702,7 @@ private let tvC = info("uuid:c", host: "192.168.1.12", name: "Alpha", model: "QE
         // The session giving up while power is in flight does not post its own message.
         h.sessions.last?.emit(.failed(.unreachable))
         await settle { h.model.tvs.first { $0.id == tvA.id }?.status == .unreachable }
-        #expect(h.model.statusMessage == nil)
+        #expect(h.model.statusEvent == nil)
 
         h.model.select(tvB.id)
         #expect(!h.model.powerBusy)
@@ -748,7 +744,7 @@ private let tvC = info("uuid:c", host: "192.168.1.12", name: "Alpha", model: "QE
         await settle { h.sessions.last?.snapshot.connects == 1 }
         h.sessions.last?.emit(.failed(.unreachable))
         // The TV already shows as unreachable before the event (no scan saw it), so wait for the message.
-        await settle { h.model.statusMessage == AppModel.unreachableMessage }
+        await settle { h.model.statusEvent == StatusLine.unreachable }
     }
 
     @Test func reconnectsWhenAnUnreachableTVComesOn() async {
@@ -810,16 +806,15 @@ private let tvC = info("uuid:c", host: "192.168.1.12", name: "Alpha", model: "QE
         let h = Harness(known: [tvA], selected: tvA.id, power: .failedToWake)
         await unreachableSelected(h)
         h.model.togglePower()
-        await settle { !h.model.powerBusy && h.model.statusMessage != nil }
-        #expect(h.model.statusIsDismissable)
+        await settle { !h.model.powerBusy && h.model.statusEvent != nil }
 
         h.fetcher.answer(tvA) // it came on after the power controller gave up
         await settle { h.clock.sleeperCount > 0 }
         h.clock.advance(by: AppModel.watchInterval)
         await settle { h.sessions.list.count == 2 }
         h.sessions.last?.emit(.connecting)
-        await settle { h.model.statusMessage == nil }
-        #expect(h.model.statusMessage == nil)
+        await settle { h.model.statusEvent == nil }
+        #expect(h.model.statusEvent == nil)
     }
 
     /// Connected, then the connection dropped and the session is retrying (it reports `.connecting`
@@ -865,7 +860,7 @@ private let tvC = info("uuid:c", host: "192.168.1.12", name: "Alpha", model: "QE
         await reconnecting(h)
         await tick(h)
         await settle { h.model.status?.tone == .warning }
-        #expect(h.model.status == StatusLine(AppModel.unreachableMessage, tone: .warning))
+        #expect(h.model.status == StatusLine.unreachable)
         // And once it answers again, the line goes back to the attempt in progress.
         h.fetcher.answer(tvA)
         await tick(h)
@@ -899,7 +894,7 @@ private let tvC = info("uuid:c", host: "192.168.1.12", name: "Alpha", model: "QE
         h.fetcher.answer(standby) // the socket may stay open in network standby; only the info tells
         await tick(h)
         await settle { h.model.tvs.first?.status == .asleep }
-        #expect(h.model.status == StatusLine(AppModel.turnedOffMessage, tone: .info))
+        #expect(h.model.status == StatusLine.tvOff)
         #expect(!h.model.controlsAvailable) // only Power does anything now
         #expect(h.sessions.list.count == 1) // the open connection is kept: Power can use it
 
@@ -928,70 +923,8 @@ private let tvC = info("uuid:c", host: "192.168.1.12", name: "Alpha", model: "QE
         h.model.togglePower()
         await settle { !h.model.powerBusy }
         h.sessions.last?.emit(.connecting) // the connection drops as the TV goes off
-        await settle { h.model.status?.text != nil }
-        #expect(h.model.status == StatusLine(AppModel.turnedOffMessage, tone: .info))
-    }
-
-    @Test func dismissingHidesTheWholeLineNotJustTheTopMessage() async {
-        // The owner's report: dismissing "Couldn't reach the TV" revealed the same text again underneath.
-        let h = Harness(known: [tvA], selected: tvA.id)
-        await unreachableSelected(h)
-        #expect(h.model.status == StatusLine(AppModel.unreachableMessage, tone: .warning))
-        #expect(h.model.statusIsDismissable)
-        h.model.dismissStatus()
-        #expect(h.model.status == nil)
-        #expect(!h.model.statusIsDismissable)
-    }
-
-    @Test func dismissingAnEventMessageAlsoHidesTheStateLineBelowIt() async {
-        let h = Harness(known: [tvA], selected: tvA.id)
-        await unreachableSelected(h)
-        h.model.statusMessage = AppModel.failedToWakeMessage
-        h.model.dismissStatus()
-        #expect(h.model.status == nil)
-    }
-
-    @Test func aDismissedLineComesBackWhenSomethingChanges() async throws {
-        let h = Harness(known: [tvA], selected: tvA.id)
-        await unreachableSelected(h)
-        h.model.dismissStatus()
-        let session = try #require(h.sessions.last)
-
-        session.emit(.connecting) // a new attempt is news
-        await settle { h.model.status?.tone == .progress }
-        #expect(h.model.status?.tone == .progress)
-        session.emit(.failed(.unreachable)) // and so is failing again
-        await settle { h.model.status?.tone == .warning }
-        #expect(h.model.status == StatusLine(AppModel.unreachableMessage, tone: .warning))
-    }
-
-    @Test func aNewMessageShowsAfterADismissal() async {
-        let h = Harness(known: [tvA], selected: tvA.id)
-        await unreachableSelected(h)
-        h.model.dismissStatus()
-        h.model.statusMessage = AppModel.notOnWiFiMessage
-        #expect(h.model.status?.text == AppModel.notOnWiFiMessage)
-    }
-
-    @Test func progressAndSuccessAreNotDismissable() async throws {
-        let h = Harness(known: [tvA], selected: tvA.id)
-        await h.appear()
-        await settle { h.sessions.last?.snapshot.connects == 1 }
-        h.sessions.last?.emit(.connecting)
-        await settle { h.model.status?.tone == .progress }
-        #expect(!h.model.statusIsDismissable)
-        h.sessions.last?.emit(.connected)
-        await settle { h.model.status?.tone == .success }
-        #expect(!h.model.statusIsDismissable)
-    }
-
-    @Test func choosingAnotherTVClearsADismissal() async {
-        let h = Harness(known: [tvA, tvB], selected: tvA.id)
-        await unreachableSelected(h)
-        h.model.dismissStatus()
-        h.model.select(tvB.id)
-        await settle { h.sessions.list.count == 2 }
-        #expect(h.model.status != nil) // "Connecting to Zed…"
+        await settle { h.model.status?.title != nil }
+        #expect(h.model.status == StatusLine.tvOff)
     }
 
     // MARK: Launch
@@ -1326,22 +1259,22 @@ private let tvC = info("uuid:c", host: "192.168.1.12", name: "Alpha", model: "QE
         #expect(h.model.screen == .chooseTV)
     }
 
-    @Test func statusMessageFollowsSessionProgress() async {
+    @Test func statusEventFollowsSessionProgress() async {
         let h = Harness(known: [tvA], selected: tvA.id)
         await h.appear()
         await settle { h.sessions.last?.snapshot.connects == 1 }
         let session = h.sessions.last
         session?.emit(.failed(.unreachable))
-        await settle { h.model.statusMessage == AppModel.unreachableMessage }
+        await settle { h.model.statusEvent == StatusLine.unreachable }
         session?.emit(.connecting)
-        await settle { h.model.statusMessage == nil }
-        #expect(h.model.statusMessage == nil)
+        await settle { h.model.statusEvent == nil }
+        #expect(h.model.statusEvent == nil)
 
         session?.emit(.failed(.approvalTimedOut))
-        await settle { h.model.statusMessage == AppModel.approvalTimedOutMessage }
+        await settle { h.model.statusEvent == StatusLine.approvalTimedOut }
         session?.emit(.failed(.denied))
         await settle { h.model.screen == .pairingDenied }
-        #expect(h.model.statusMessage == nil)
+        #expect(h.model.statusEvent == nil)
     }
 
     @Test func playPauseAlternates() async throws {
@@ -1397,16 +1330,18 @@ private let tvC = info("uuid:c", host: "192.168.1.12", name: "Alpha", model: "QE
 
         // The TV was turned off on purpose: its session giving up is not an error, and the status
         // line says the TV is off rather than "Connecting…".
+        // Shown as asleep as soon as it was turned off, before the session even notices.
+        #expect(h.model.tvs.first?.status == .asleep)
         session.emit(.failed(.unreachable))
-        await settle { h.model.tvs.first?.status != .on }
-        #expect(h.model.statusMessage == AppModel.turnedOffMessage)
-        #expect(h.model.statusText == AppModel.turnedOffMessage)
+        await settle { h.model.statusEvent != nil }
+        #expect(h.model.statusEvent == StatusLine.tvOff)
+        #expect(h.model.status == StatusLine.tvOff)
         #expect(h.model.tvs.first { $0.id == tvA.id }?.status == .asleep)
         session.emit(.failed(.approvalTimedOut))
         await drain()
-        #expect(h.model.statusMessage == AppModel.turnedOffMessage)
-        h.model.statusMessage = nil
-        #expect(h.model.statusText == AppModel.turnedOffMessage)
+        #expect(h.model.statusEvent == StatusLine.tvOff)
+        h.model.statusEvent = nil
+        #expect(h.model.status == StatusLine.tvOff)
         // The scan after turning off does not find it; it is still shown as asleep.
         h.discovery.finish()
         await settle { !h.model.tvs.isEmpty && h.discovery.scans.count == 2 }
@@ -1417,8 +1352,8 @@ private let tvC = info("uuid:c", host: "192.168.1.12", name: "Alpha", model: "QE
         session.emit(.connected)
         await settle { h.model.isConnected }
         session.emit(.failed(.unreachable))
-        await settle { h.model.statusMessage == AppModel.unreachableMessage }
-        #expect(h.model.statusMessage == AppModel.unreachableMessage)
+        await settle { h.model.statusEvent == StatusLine.unreachable }
+        #expect(h.model.statusEvent == StatusLine.unreachable)
         #expect(h.model.tvs.first { $0.id == tvA.id }?.status == .unreachable)
     }
 
@@ -1427,13 +1362,13 @@ private let tvC = info("uuid:c", host: "192.168.1.12", name: "Alpha", model: "QE
         h.model.onAppear()
         #expect(h.model.screen == .noWiFi)
         h.model.togglePower()
-        #expect(h.model.statusMessage == AppModel.notOnWiFiMessage)
+        #expect(h.model.statusEvent == StatusLine.notOnWiFi)
         #expect(h.power.calls.withLock { $0 }.isEmpty)
 
         // Wi-Fi came back but nothing has refreshed yet: Power still works.
         h.wifi.isOn = true
         h.model.togglePower()
-        #expect(h.model.statusMessage != "Choose a TV first.")
+        #expect(h.model.statusEvent != .chooseTVFirst)
         await settle { h.power.calls.withLock { $0 } == [tvA.id] }
         #expect(h.power.calls.withLock { $0 } == [tvA.id])
         #expect(h.model.screen != .noWiFi)
@@ -1518,15 +1453,15 @@ private let tvC = info("uuid:c", host: "192.168.1.12", name: "Alpha", model: "QE
         #expect(h.model.statusText == "Pairing with the TV…")
 
         session.emit(.failed(.unreachable))
-        await settle { h.model.statusMessage != nil }
-        #expect(h.model.status == StatusLine(AppModel.unreachableMessage, tone: .warning))
+        await settle { h.model.statusEvent != nil }
+        #expect(h.model.status == StatusLine.unreachable)
         // Even with the message gone, a session that gave up is never shown as connecting.
-        h.model.statusMessage = nil
-        #expect(h.model.statusText == AppModel.unreachableMessage)
+        h.model.statusEvent = nil
+        #expect(h.model.status == StatusLine.unreachable)
         session.emit(.failed(.approvalTimedOut))
-        await settle { h.model.statusMessage != nil }
-        h.model.statusMessage = nil
-        #expect(h.model.statusText == AppModel.approvalTimedOutMessage)
+        await settle { h.model.statusEvent != nil }
+        h.model.statusEvent = nil
+        #expect(h.model.status == StatusLine.approvalTimedOut)
 
         session.emit(.connected)
         await settle { h.model.isConnected }
@@ -1538,14 +1473,6 @@ private let tvC = info("uuid:c", host: "192.168.1.12", name: "Alpha", model: "QE
         #expect(h.model.statusText == nil)
     }
 
-    @Test func statusTones() {
-        #expect(AppModel.tone(ofMessage: AppModel.turnedOffMessage) == .info)
-        #expect(AppModel.tone(ofMessage: AppModel.unreachableMessage) == .warning)
-        #expect(AppModel.tone(ofMessage: AppModel.sendFailedMessage) == .warning)
-        #expect(AppModel.tone(ofMessage: AppModel.failedToWakeMessage) == .warning)
-
-    }
-
     @Test func connectedConfirmationEndsWhenTheSessionDrops() async throws {
         let h = Harness(known: [tvA], selected: tvA.id)
         await h.appear()
@@ -1553,7 +1480,31 @@ private let tvC = info("uuid:c", host: "192.168.1.12", name: "Alpha", model: "QE
         #expect(h.model.status?.tone == .success)
         h.sessions.last?.emit(.failed(.unreachable))
         await settle { h.model.status?.tone == .warning }
-        #expect(h.model.status == StatusLine(AppModel.unreachableMessage, tone: .warning))
+        #expect(h.model.status == StatusLine.unreachable)
+    }
+
+    @Test func pressingPowerShowsTheDirectionAtOnce() async {
+        // No plan reported yet (the TV is still being checked): the line must not fall back to an older
+        // message in the meantime.
+        let h = Harness(known: [tvA], selected: tvA.id, power: .turnedOn)
+        await unreachableSelected(h)
+        #expect(h.model.status == .unreachable)
+        h.power.gate.close()
+        h.model.togglePower()
+        #expect(h.model.status == .turningOn) // synchronously, before any await
+        await settle { h.power.gate.waiting == 1 }
+        #expect(h.model.status == .turningOn)
+        h.power.gate.open()
+        await settle { !h.model.powerBusy }
+
+        let on = Harness(known: [tvA], selected: tvA.id, power: .turnedOff)
+        await on.appear()
+        await on.connectCurrent()
+        on.power.gate.close()
+        on.model.togglePower()
+        #expect(on.model.status == .turningOff)
+        on.power.gate.open()
+        await settle { !on.model.powerBusy }
     }
 
     @Test func statusShowsPowerDirectionWhileRunning() async {
@@ -1687,7 +1638,7 @@ private let tvC = info("uuid:c", host: "192.168.1.12", name: "Alpha", model: "QE
         await settle { h.sessions.last?.snapshot.connects == 1 }
         let first = try #require(h.sessions.last)
         first.emit(.failed(.approvalTimedOut))
-        await settle { h.model.statusMessage == AppModel.approvalTimedOutMessage }
+        await settle { h.model.statusEvent == StatusLine.approvalTimedOut }
 
         h.discovery.yield(.found(tvA))
         await settle { h.sessions.list.count == 2 && h.sessions.last?.snapshot.connects == 1 }

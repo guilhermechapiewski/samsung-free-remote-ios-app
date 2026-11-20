@@ -120,6 +120,10 @@ final class FlowUITests: XCTestCase {
         attachScreenshot(app, "connected")
         XCTAssertFalse(close.exists)
         XCTAssertTrue(picker.waitForValue(containing: "Bedroom", timeout: 5))
+        // The demo Bedroom TV is in standby: the presence check soon shows it as off and asleep.
+        XCTAssertTrue(status.waitForLabel("The TV is off", timeout: 8))
+        XCTAssertTrue(picker.waitForValue(containing: "Asleep", timeout: 5))
+        attachScreenshot(app, "tv-off")
     }
 
     @MainActor

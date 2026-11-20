@@ -18,7 +18,7 @@ confirmed on real hardware; see the checklist at the end.
   notice). While not connected, when the TV answers `PowerState: on`, a
   failed session reconnects, and a retry stuck waiting out its backoff (still connecting after 4 checks)
   starts over at once; so a TV that boots late or is turned on with its own remote connects within seconds.
-  A `standby` answer only marks the TV asleep; no answer while retrying shows "Couldn't reach the TV"
+  A `standby` answer only marks the TV asleep; no answer while retrying shows "Can't reach the TV"
   instead of "Connecting…". The session's own retries (backoff 0.5 s doubling to 30 s, 5 failures, 5 s
   connect timeout) would otherwise take about 40 s to give up.
 - `wss://<host>:8002/api/v2/channels/samsung.remote.control?name=<base64 name>[&token=<token>]` — the

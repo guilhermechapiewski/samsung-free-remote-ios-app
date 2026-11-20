@@ -108,10 +108,8 @@ struct RootView: View {
             VStack(spacing: 20) {
                 TVPicker()
                 StateCard(screen: model.screen, onAddTV: addTV)
-                if let message = model.statusMessage {
-                    StatusView(StatusLine(message, tone: AppModel.tone(ofMessage: message))) {
-                        model.statusMessage = nil
-                    }
+                if let event = model.statusEvent {
+                    StatusView(event)
                 }
             }
             .padding(.horizontal, 24)

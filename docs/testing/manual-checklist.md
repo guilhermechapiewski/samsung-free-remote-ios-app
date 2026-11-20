@@ -104,14 +104,17 @@ a haptic tap:
 
 - [ ] Press Power on a TV that takes long to boot (or turn it on with its own remote while the app shows it as
       unreachable): within a few seconds of the TV coming on, the app connects by itself, without Scan Again,
-      and the "hasn't turned on yet" message goes away.
+      and "The TV hasn't turned on yet" goes away.
 - [ ] Turn the TV off with its own remote while the app is open: within a few seconds the app shows it as
-      off ("The TV is off…" or "Couldn't reach the TV…", never a long "Connecting…"), and only Power stays
+      off ("The TV is off" or "Can't reach the TV", never a long "Connecting…"), and only Power stays
       enabled; turn it back on with its own remote: the app connects within seconds.
-- [ ] Turn the TV off with the app's Power button: "Turning off…", then "The TV is off…", with no
+- [ ] Turn the TV off with the app's Power button: "Turning off…", then "The TV is off", with no
       "Connecting…" in between.
-- [ ] Warnings and information have an ✕; dismissing hides the line entirely (no second message appears
-      underneath) until something new happens, such as pressing Power or the TV coming back.
+- [ ] The status line is always one short line in the same place: the D-pad never moves as messages
+      come and go (also at the largest text size, where it may use two lines). Lines with more to say
+      show ⓘ; tapping opens the explanation.
+- [ ] Pressing Power shows "Turning on…" / "Turning off…" at once, with no older message flashing first.
+- [ ] Turning the TV off with the app turns the card's dot orange (Asleep) right away.
 
 ## Control Center control
 

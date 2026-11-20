@@ -37,70 +37,83 @@ extension StatusTone {
     }
 }
 
-/// The status line above the D-pad: what is happening (blue, with a spinner), that it worked (green), what
-/// went wrong (orange), or plain information. Tinted so a change is hard to miss.
+/// The status line above the D-pad: one short line, tinted by tone (blue with a spinner while something is
+/// happening, green when it worked, orange for problems, neutral for information). Its height never
+/// changes, even when empty, so the remote below never moves. A status with more to say shows ⓘ and opens
+/// the explanation in a popover when tapped.
 struct StatusView: View {
     let line: StatusLine?
-    /// Shows a close button when set (for transient messages, not ones describing the session).
-    var onDismiss: (() -> Void)?
 
-    init(_ line: StatusLine?, onDismiss: (() -> Void)? = nil) {
-        self.line = line
-        self.onDismiss = onDismiss
-    }
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @State private var showsDetail = false
+
+    init(_ line: StatusLine?) { self.line = line }
+
+    /// One line normally; two at the accessibility text sizes, where one would truncate too much.
+    private var lineCount: Int { dynamicTypeSize.isAccessibilitySize ? 2 : 1 }
 
     var body: some View {
         ZStack {
+            // Reserves the height of a full chip whatever is (or isn't) showing.
+            chip(StatusLine(Array(repeating: "Ag", count: lineCount).joined(separator: "\n"), tone: .info))
+                .hidden()
+                .accessibilityHidden(true)
             if let line {
                 content(line)
-                    .id(line) // a new message animates in
-                    .transition(.opacity.combined(with: .scale(scale: 0.92)))
+                    .id(line) // a new status crossfades in place
+                    .transition(.opacity)
             }
         }
-        .frame(maxWidth: .infinity, minHeight: 18)
-        .animation(.snappy(duration: 0.25), value: line)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(line?.text ?? "")
-        .accessibilityHidden(line == nil)
-        .accessibilityIdentifier("status")
-        .accessibilityActions {
-            if let onDismiss { Button("Dismiss", action: onDismiss) }
+        .frame(maxWidth: .infinity)
+        .animation(.easeInOut(duration: 0.2), value: line)
+        .onChange(of: line) { showsDetail = false }
+    }
+
+    @ViewBuilder private func content(_ line: StatusLine) -> some View {
+        if let detail = line.detail {
+            Button { showsDetail = true } label: { chip(line) }
+                .buttonStyle(.plain)
+                .popover(isPresented: $showsDetail) {
+                    Text(detail)
+                        .font(.callout)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding()
+                        .frame(idealWidth: 320)
+                        .presentationCompactAdaptation(.popover)
+                }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(line.title)
+                .accessibilityValue(detail)
+                .accessibilityAddTraits(.isButton)
+                .accessibilityIdentifier("status")
+        } else {
+            chip(line)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(line.title)
+                .accessibilityIdentifier("status")
         }
     }
 
-    private func content(_ line: StatusLine) -> some View {
+    private func chip(_ line: StatusLine) -> some View {
         let tint = line.tone.color
-        let shape = RoundedRectangle(cornerRadius: 14, style: .continuous)
-        return HStack(alignment: .firstTextBaseline, spacing: 8) {
+        let shape = Capsule(style: .continuous)
+        return HStack(spacing: 8) {
             if let symbol = line.tone.symbol {
                 Image(systemName: symbol)
                     .foregroundStyle(tint)
-                    .accessibilityHidden(true)
             } else {
                 ProgressView()
                     .controlSize(.small)
                     .tint(tint)
-                    .alignmentGuide(.firstTextBaseline) { $0[VerticalAlignment.center] + 5 }
             }
-            Text(line.text)
+            Text(line.title)
                 .foregroundStyle(line.tone == .info ? Color.primary : tint)
-                .multilineTextAlignment(.leading)
-                .fixedSize(horizontal: false, vertical: true)
-            if let onDismiss {
-                Spacer(minLength: 0)
-                Button(action: onDismiss) {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.title3)
-                        .symbolRenderingMode(.hierarchical)
-                        .foregroundStyle(line.tone == .info ? Color.secondary : tint)
-                        .frame(width: 44, height: 44) // a full-size touch target
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .padding(.vertical, -12) // keep the line's height; the touch target overhangs
-                .padding(.trailing, -10)
-                .accessibilityLabel("Dismiss")
-                .accessibilityIdentifier("dismiss-status")
+                .lineLimit(lineCount)
+                .minimumScaleFactor(0.85)
+                .multilineTextAlignment(.center)
+            if line.detail != nil {
+                Image(systemName: "info.circle")
+                    .foregroundStyle(line.tone == .info ? Color.secondary : tint)
             }
         }
         .font(.subheadline.weight(.semibold))
@@ -255,10 +268,11 @@ struct StateCard: View {
 
 #Preview {
     VStack(spacing: 20) {
-        StatusView(StatusLine("Connecting to Living Room…", tone: .progress))
-        StatusView(StatusLine("Connected to Living Room", tone: .success))
-        StatusView(StatusLine(AppModel.failedToWakeMessage, tone: .warning)) {}
-        StatusView(StatusLine(AppModel.turnedOffMessage, tone: .info))
+        StatusView(.connecting(to: "Living Room"))
+        StatusView(.connected(to: "Living Room"))
+        StatusView(.notTurnedOn)
+        StatusView(.tvOff)
+        StatusView(nil)
     }
     .padding()
     .background(Color.remoteBackground)

@@ -44,28 +44,6 @@ enum ScanFeedback: Equatable {
     case found(newTVs: Int)
 }
 
-/// How the status line above the D-pad should look.
-enum StatusTone: Hashable {
-    /// Something is happening (connecting, turning on or off).
-    case progress
-    /// It worked (connected).
-    case success
-    /// Something went wrong or needs the user.
-    case warning
-    /// Plain information.
-    case info
-}
-
-struct StatusLine: Hashable {
-    let text: String
-    let tone: StatusTone
-
-    init(_ text: String, tone: StatusTone) {
-        self.text = text
-        self.tone = tone
-    }
-}
-
 enum PowerDirection: Equatable {
     case turningOn, turningOff
 }
@@ -77,39 +55,13 @@ enum PowerDirection: Equatable {
 final class AppModel {
     static let selectedTVKey = "selectedTV"
 
-    /// Where Samsung TVs keep the setting that lets the app turn them on (2022 and newer under
-    /// Connection; older models under General).
-    static let powerOnWithMobilePath =
-        "Settings → Connection → Network → Expert Settings → Power On with Mobile "
-        + "(on some TVs: Settings → General → Network → Expert Settings)"
-    /// The same path, for use inside parentheses.
-    static let powerOnWithMobilePathInline =
-        "Settings → Connection → Network → Expert Settings → Power On with Mobile; "
-        + "on some TVs: Settings → General → Network → Expert Settings"
-    /// The TV did not answer as on within the power controller's wait. The app keeps watching (see
-    /// `watchInterval`), so a TV that is just slow to boot still connects. Broadcast or not, a TV off for
-    /// hours may not wake at all (2026-11-20 overnight test), hence the own-remote advice.
-    static let failedToWakeMessage =
-        "The TV hasn't turned on yet. If it does, it connects here on its own. If it stays off, check that "
-        + "“Power On with Mobile” is on (\(powerOnWithMobilePathInline)) or use the TV's own remote."
     /// Shown once per TV, after its first successful connection.
     static let powerTipTitle = "Turn On “Power On with Mobile”"
     static let powerTipMessage =
         "To turn this TV on from your iPhone, the TV's “Power On with Mobile” setting must be on: "
-        + "\(powerOnWithMobilePath)."
+        + "\(StatusLine.powerOnWithMobilePath)."
     /// TV ids that have already been shown the power tip.
     static let powerTipShownKey = "powerTipShownTVs"
-    static let unreachableMessage = "Couldn't reach the TV. If it's off, press Power to turn it on."
-    static let approvalTimedOutMessage =
-        "The TV didn't confirm the connection in time. Try again and choose Allow if your TV asks."
-    static let noMACKnownMessage =
-        "Couldn't turn on the TV because its network address for waking isn't known yet. "
-        + "Turn the TV on with its own remote once while this app is open, then try again."
-    static let notOnWiFiMessage = "Connect your iPhone to the same Wi-Fi network as the TV, then try again."
-    static let powerUnreachableMessage =
-        "Couldn't reach the TV to change its power. Make sure it's on the same Wi-Fi network, then try again."
-    static let sendFailedMessage = "The TV didn't receive that. Reconnecting…"
-    static let turnedOffMessage = "The TV is off. Press Power to turn it on."
     /// How long "Connected to …" stays up after a connection.
     static let connectedConfirmationDuration: Duration = .seconds(2)
     /// While Local Network access looks denied, scan again this often (e.g. the user is still
@@ -138,12 +90,9 @@ final class AppModel {
     /// The TV is showing its on-screen keyboard and wants text.
     private(set) var keyboardRequested = false
     /// A transient explanation for the user (why a press did nothing, why power failed, …).
-    var statusMessage: String? {
-        didSet { if statusMessage != nil { statusDismissed = false } } // a new message is news
-    }
-    /// The user dismissed the status line; it stays hidden until something changes (a new message, a
-    /// session state change, a power toggle, another TV).
-    private var statusDismissed = false
+    /// The last event worth telling the user about (a failure, a key that didn't arrive); cleared when the
+    /// session makes progress or another TV is chosen.
+    var statusEvent: StatusLine?
     /// The TV to show the one-time "Power On with Mobile" tip for, or nil.
     var powerTipTV: TVID?
     /// "Connected to …" is showing (briefly, after a connection).
@@ -456,8 +405,7 @@ final class AppModel {
         repeater.end()
         selectedID = id
         env.userDefaults.set(id.rawValue, forKey: Self.selectedTVKey)
-        statusMessage = nil
-        statusDismissed = false
+        statusEvent = nil
         if onWiFi {
             openSession(id)
         } else {
@@ -509,7 +457,6 @@ final class AppModel {
 
     private func sessionStateChanged(_ state: SessionState, on handle: SessionHandle) {
         guard handle === current else { return }
-        statusDismissed = false
         connectingTicks = 0
         missedWhileConnected = 0
         watchFoundNoAnswer = false
@@ -527,16 +474,16 @@ final class AppModel {
         switch state {
         case .connecting, .awaitingApproval, .connected, .failed(.denied), .failed(.identityChanged):
             // Progress makes older explanations stale; failure screens explain themselves.
-            statusMessage = nil
+            statusEvent = nil
         case .failed(.unreachable), .failed(.approvalTimedOut):
             // While a power toggle runs, its outcome explains what happened; a TV just turned off
             // is expected to go away.
             if powerBusy {
                 break
             } else if selectedTurnedOff {
-                statusMessage = Self.turnedOffMessage
+                statusEvent = .tvOff
             } else {
-                statusMessage = state == .failed(.unreachable) ? Self.unreachableMessage : Self.approvalTimedOutMessage
+                statusEvent = state == .failed(.unreachable) ? .unreachable : .approvalTimedOut
             }
         case .idle:
             break
@@ -565,7 +512,7 @@ final class AppModel {
 
     func beginHold(_ key: RemoteKey) {
         guard isConnected else {
-            statusMessage = notConnectedReason
+            statusEvent = notConnectedReason
             return
         }
         repeater.begin(key)
@@ -603,7 +550,7 @@ final class AppModel {
         _ operation: @escaping @MainActor (any RemoteSessionProtocol) async throws(SessionError) -> Void
     ) -> Task<Void, Never>? {
         guard let handle = current, isConnected else {
-            statusMessage = notConnectedReason
+            statusEvent = notConnectedReason
             return nil
         }
         return handle.enqueue { [weak self] session in
@@ -612,29 +559,24 @@ final class AppModel {
             } catch {
                 guard let self, handle === self.current else { return }
                 Self.log.error("Send failed: \(String(describing: error), privacy: .public)")
-                self.statusMessage = Self.sendFailedMessage
+                self.statusEvent = .reconnecting
             }
         }
     }
 
-    private var notConnectedReason: String {
-        if !onWiFi { return "Connect to Wi-Fi to control your TV." }
-        guard selectedID != nil, current != nil else { return "Choose a TV first." }
+    /// Why a key press did nothing.
+    private var notConnectedReason: StatusLine {
+        if !onWiFi { return .notOnWiFi }
+        guard selectedID != nil, current != nil else { return .chooseTVFirst }
         switch sessionState {
-        case .awaitingApproval:
-            return "Look at your TV and choose Allow."
-        case .failed(.denied):
-            return "Your TV blocked this iPhone. Allow TV Remote in the TV's Device Connection Manager."
-        case .failed(.identityChanged):
-            return "This TV's security identity changed. Pair again to continue."
+        case .awaitingApproval: return .chooseAllow
+        case .failed(.denied): return .blocked
+        case .failed(.identityChanged): return .identityChanged
         case .failed(.unreachable) where selectedTurnedOff, .failed(.approvalTimedOut) where selectedTurnedOff:
-            return Self.turnedOffMessage
-        case .failed(.unreachable):
-            return Self.unreachableMessage
-        case .failed(.approvalTimedOut):
-            return Self.approvalTimedOutMessage
-        case .idle, .connecting, .connected:
-            return "Connecting to the TV…"
+            return .tvOff
+        case .failed(.unreachable): return .unreachable
+        case .failed(.approvalTimedOut): return .approvalTimedOut
+        case .idle, .connecting, .connected: return .connecting(to: selectedTitle)
         }
     }
 
@@ -642,9 +584,8 @@ final class AppModel {
 
     func togglePower() {
         guard !powerBusy else { return }
-        statusDismissed = false
         guard let id = selectedID, let tv = registry.tvs[id] else {
-            statusMessage = "Choose a TV first."
+            statusEvent = .chooseTVFirst
             return
         }
         if current == nil {
@@ -652,11 +593,14 @@ final class AppModel {
             refresh()
         }
         guard let handle = current else {
-            statusMessage = onWiFi ? Self.unreachableMessage : Self.notOnWiFiMessage
+            statusEvent = onWiFi ? .unreachable : .notOnWiFi
             return
         }
         powerBusyTVs.insert(id)
-        statusMessage = nil
+        statusEvent = nil
+        // Show the likely direction at once (the plan, after checking the TV, may correct it), so the line
+        // never shows a stale message in between.
+        powerDirections[id] = isConnected && !selectedTurnedOff ? .turningOff : .turningOn
         let power = powerController(for: id), sender = powerSender(for: handle)
         let onPlan: @Sendable (PowerAction) async -> Void = { [weak self] action in
             await self?.powerPlanned(action, for: id)
@@ -720,17 +664,17 @@ final class AppModel {
             if sessionState != .connected { openSession(id) }
             rescan()
         case .failedToWake:
-            statusMessage = Self.failedToWakeMessage
+            statusEvent = .notTurnedOn
         case .noMACKnown:
-            statusMessage = Self.noMACKnownMessage
+            statusEvent = .wakeAddressUnknown
         case .notOnWiFi:
-            statusMessage = Self.notOnWiFiMessage
+            statusEvent = .notOnWiFi
         case .failed(.identityChanged):
             sessionStateChanged(.failed(.identityChanged), on: handle)
         case .failed(.denied):
             sessionStateChanged(.failed(.denied), on: handle)
         case .failed(.unreachable), .failed(.approvalTimedOut):
-            statusMessage = Self.powerUnreachableMessage
+            statusEvent = .unreachable
         }
     }
 
@@ -754,7 +698,7 @@ final class AppModel {
             closeSession()
             selectedID = nil
             env.userDefaults.removeObject(forKey: Self.selectedTVKey)
-            statusMessage = nil
+            statusEvent = nil
         }
         registry.forget(id)
         saveRegistry()
@@ -793,7 +737,7 @@ final class AppModel {
     /// Forgets the selected TV's pairing and connects again, so the TV asks to Allow once more.
     func repair() {
         guard let id = selectedID else { return }
-        statusMessage = nil
+        statusEvent = nil
         closeSession()
         let credentials = env.credentials
         afterTeardown { credentials.delete(id) }
@@ -803,61 +747,29 @@ final class AppModel {
 
     // MARK: - Derived state
 
-    /// The text of `status`.
-    var statusText: String? { status?.text }
+    /// The title of `status`.
+    var statusText: String? { status?.title }
 
-    /// Warnings and information can be dismissed; progress and "Connected" end on their own.
-    var statusIsDismissable: Bool {
-        guard let tone = status?.tone else { return false }
-        return tone == .warning || tone == .info
-    }
-
-    /// Hides the whole status line (the event message and the session line beneath it) until something
-    /// changes, so dismissing never reveals a second, similar message.
-    func dismissStatus() {
-        guard statusIsDismissable else { return }
-        statusMessage = nil
-        statusDismissed = true
-    }
-
-    /// The status line above the D-pad: what is happening with the selected TV, or what went wrong;
-    /// nil when there is nothing to say or the user dismissed it.
+    /// The status line above the D-pad: power progress, else the last event, else what the selected TV's
+    /// session is doing. Nil when connected with nothing to say.
     var status: StatusLine? {
-        statusDismissed ? nil : currentStatus
-    }
-
-    /// Power progress, else the transient event message, else a line describing the session.
-    private var currentStatus: StatusLine? {
-        if let powerDirection {
-            return StatusLine(powerDirection == .turningOn ? "Turning on…" : "Turning off…", tone: .progress)
-        }
-        if let statusMessage { return StatusLine(statusMessage, tone: Self.tone(ofMessage: statusMessage)) }
+        if let powerDirection { return powerDirection == .turningOn ? .turningOn : .turningOff }
+        if let statusEvent { return statusEvent }
         guard screen == .ready else { return Self.screenStatusText(screen).map { StatusLine($0, tone: .info) } }
-        let name = selectedTitle
-        if isConnected {
-            if selectedTurnedOff { return StatusLine(Self.turnedOffMessage, tone: .info) }
-            return showsConnected ? StatusLine(name.map { "Connected to \($0)" } ?? "Connected", tone: .success) : nil
-        }
+        if selectedTurnedOff, sessionState != .awaitingApproval { return .tvOff }
         switch sessionState {
-        case .failed(.unreachable), .failed(.approvalTimedOut):
-            // A session that gave up is not connecting; never claim otherwise.
-            if selectedTurnedOff { return StatusLine(Self.turnedOffMessage, tone: .info) }
-            let message = sessionState == .failed(.unreachable) ? Self.unreachableMessage : Self.approvalTimedOutMessage
-            return StatusLine(message, tone: .warning)
-        case .connecting where selectedTurnedOff:
-            // The connection dropped because the TV went off; it is not worth a "Connecting…".
-            return StatusLine(Self.turnedOffMessage, tone: .info)
+        case .connected:
+            return showsConnected ? .connected(to: selectedTitle) : nil
+        case .failed(.unreachable):
+            return .unreachable
+        case .failed(.approvalTimedOut):
+            return .approvalTimedOut
         case .connecting where watchFoundNoAnswer:
-            // The session is still retrying, but the TV isn't answering: say so rather than "Connecting…".
-            return StatusLine(Self.unreachableMessage, tone: .warning)
-        case .idle, .connecting, .awaitingApproval, .connected, .failed(.denied), .failed(.identityChanged):
-            return StatusLine(name.map { "Connecting to \($0)…" } ?? "Connecting…", tone: .progress)
+            // Still retrying, but the TV isn't answering: say so rather than "Connecting…".
+            return .unreachable
+        case .idle, .connecting, .awaitingApproval, .failed(.denied), .failed(.identityChanged):
+            return .connecting(to: selectedTitle)
         }
-    }
-
-    /// The tone of a transient `statusMessage`: the TV being off is information; the rest are problems.
-    static func tone(ofMessage message: String) -> StatusTone {
-        message == turnedOffMessage ? .info : .warning
     }
 
     private var selectedTitle: String? { tvs.first { $0.id == selectedID }?.title }
@@ -1050,13 +962,14 @@ final class AppModel {
         if id == selectedID, current != nil {
             switch sessionState {
             case .awaitingApproval: return .pairing
-            case .connected: return .on
+            case .connected: return turnedOffTVs.contains(id) ? .asleep : .on
             case .failed(.unreachable), .failed(.approvalTimedOut):
                 return turnedOffTVs.contains(id) ? .asleep : .unreachable
             case .idle, .connecting, .failed(.denied), .failed(.identityChanged): break
             }
         }
-        if turnedOffTVs.contains(id), seen[id]?.powerState != .on { return .asleep }
+        // Cleared as soon as the TV is seen on again, so it outranks an older scan result.
+        if turnedOffTVs.contains(id) { return .asleep }
         guard let info = seen[id] else { return .unreachable }
         return info.powerState == .on ? .on : .asleep
     }
