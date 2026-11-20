@@ -143,4 +143,11 @@ import SamsungTVKit
         #expect(gone.sheet == rename && !gone.queued)
         #expect(RootView.queuedTextAfterSheetChange(keyboardRequested: false, current: nil, queued: false).sheet == nil)
     }
+
+    @Test func scanFeedbackText() {
+        #expect(ScanFeedback.scanning.text == "Looking for TVs…")
+        #expect(ScanFeedback.found(newTVs: 0).text == "No new TVs found")
+        #expect(ScanFeedback.found(newTVs: 1).text == "Found 1 new TV")
+        #expect(ScanFeedback.found(newTVs: 3).text == "Found 3 new TVs")
+    }
 }

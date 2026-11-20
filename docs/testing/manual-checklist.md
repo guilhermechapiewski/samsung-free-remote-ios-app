@@ -25,6 +25,9 @@ names or TV names. In public notes, refer to TVs only by model year and series.
 - [ ] A TV that does not answer SSDP (find via `tvprobe`) is still found (Bonjour or the known-TV probe).
 - [ ] A TV in standby that still answers on the network is found and shown as Asleep.
 - [ ] "Scan again" refreshes the list; TVs that are on are listed first.
+- [ ] Scan Again (TV menu) shows a spinner and "Looking for TVs…" on the TV card with a light tap, then
+  "Found N new TVs" or "No new TVs found" with a success tap; the card returns to normal after about 3 s.
+  Automatic scans (launch, returning to the app) show none of this.
 - [ ] "Add TV by IP…" adds a TV by its address; a public or invalid address is rejected with a message.
 - [ ] Relaunching the app shows remembered TVs immediately, including ones that are off (Unreachable/Asleep).
 

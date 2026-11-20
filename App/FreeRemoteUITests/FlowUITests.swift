@@ -128,6 +128,24 @@ final class FlowUITests: XCTestCase {
     }
 
     @MainActor
+    func testScanAgainShowsProgressAndResult() {
+        let app = launch()
+        waitForRemote(app)
+        let picker = app.buttons["TV picker"]
+        picker.tap()
+        let scanAgain = app.buttons["Scan Again"]
+        XCTAssertTrue(scanAgain.waitForExistence(timeout: 5))
+        scanAgain.tap()
+        XCTAssertTrue(picker.waitForValue(containing: "Looking for TVs…", timeout: 5))
+        XCTAssertTrue(picker.waitForValue(containing: "No new TVs found", timeout: 10))
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = "scan-result"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+        XCTAssertTrue(picker.waitForValue(containing: "", excluding: "No new TVs found", timeout: 10))
+    }
+
+    @MainActor
     func testChooseTVSelectsTV() {
         let app = launch(["-demo", "-demo-choose"])
         XCTAssertTrue(app.staticTexts["Choose your TV"].waitForExistence(timeout: 10))
@@ -152,5 +170,18 @@ final class FlowUITests: XCTestCase {
         // It does not reappear on its own.
         Thread.sleep(forTimeInterval: 2)
         XCTAssertFalse(field.exists)
+    }
+}
+
+private extension XCUIElement {
+    /// Waits until the accessibility value contains `text` (and not `excluding`, when given).
+    func waitForValue(containing text: String, excluding: String? = nil, timeout: TimeInterval) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            let value = (self.value as? String) ?? ""
+            if (text.isEmpty || value.contains(text)), excluding.map({ !value.contains($0) }) ?? true { return true }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+        }
+        return false
     }
 }

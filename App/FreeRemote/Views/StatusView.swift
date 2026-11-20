@@ -148,8 +148,9 @@ struct StateCard: View {
                     .accessibilityLabel("\(tv.title), \(tv.status.displayName)")
                     .accessibilityAddTraits(.isButton)
                 }
-                Button("Scan Again") { model.rescan() }
+                Button(model.scanFeedback == .scanning ? "Scanning…" : "Scan Again") { model.scanAgain() }
                     .buttonStyle(.bordered)
+                    .disabled(model.scanFeedback == .scanning)
             }
         case .pairingDenied:
             Button("Try Again") { model.rescan() }

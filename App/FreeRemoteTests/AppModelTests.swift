@@ -721,6 +721,108 @@ private let tvC = info("uuid:c", host: "192.168.1.12", name: "Alpha", model: "QE
         #expect(h.model.screen == .ready)
     }
 
+    // MARK: Scan Again feedback
+
+    @Test func automaticScansShowNoFeedback() async {
+        let h = Harness(known: [tvA], selected: tvA.id)
+        await h.appear()
+        #expect(h.model.scanFeedback == nil)
+        h.discovery.finish()
+        await drain()
+        #expect(h.model.scanFeedback == nil)
+    }
+
+    @Test func scanAgainShowsProgressThenNewTVCount() async {
+        let h = Harness(known: [tvA], selected: tvA.id)
+        await h.appear()
+        h.discovery.finish()
+        await drain()
+
+        h.model.scanAgain()
+        #expect(h.model.scanFeedback == .scanning)
+        await settle { h.discovery.scans.count == 2 }
+        h.discovery.yield(.found(tvA)) // already known: not new
+        h.discovery.yield(.found(tvB))
+        h.discovery.yield(.found(tvC))
+        h.discovery.finish()
+        await settle { h.model.scanFeedback != .scanning }
+        #expect(h.model.scanFeedback == .found(newTVs: 2))
+
+        await settle { h.clock.sleeperCount > 0 }
+        h.clock.advance(by: AppModel.scanResultDuration)
+        await settle { h.model.scanFeedback == nil }
+        #expect(h.model.scanFeedback == nil)
+    }
+
+    @Test func scanAgainReportsNoNewTVs() async {
+        let h = Harness(known: [tvA], selected: tvA.id)
+        await h.appear()
+        h.discovery.finish()
+        await drain()
+
+        h.model.scanAgain()
+        await settle { h.discovery.scans.count == 2 }
+        h.discovery.yield(.found(tvA))
+        h.discovery.finish()
+        await settle { h.model.scanFeedback != .scanning }
+        #expect(h.model.scanFeedback == .found(newTVs: 0))
+    }
+
+    @Test func scanAgainJoinsScanAlreadyRunning() async {
+        let h = Harness(known: [tvA], selected: tvA.id)
+        await h.appear() // the launch scan is still running
+        h.model.scanAgain()
+        #expect(h.model.scanFeedback == .scanning)
+        h.model.scanAgain() // a second tap does nothing more
+        await drain()
+        #expect(h.discovery.scans.count == 1)
+        h.discovery.yield(.found(tvB))
+        h.discovery.finish()
+        await settle { h.model.scanFeedback != .scanning }
+        #expect(h.model.scanFeedback == .found(newTVs: 1))
+    }
+
+    @Test func scanAgainDuringResultStartsFreshScan() async {
+        let h = Harness(known: [tvA], selected: tvA.id)
+        await h.appear()
+        h.discovery.finish()
+        await drain()
+        h.model.scanAgain()
+        await settle { h.discovery.scans.count == 2 }
+        h.discovery.finish()
+        await settle { h.model.scanFeedback == .found(newTVs: 0) }
+
+        h.model.scanAgain()
+        #expect(h.model.scanFeedback == .scanning)
+        await settle { h.discovery.scans.count == 3 }
+        // The first result's timer must not clear the new scan's spinner.
+        h.clock.advance(by: AppModel.scanResultDuration)
+        await drain()
+        #expect(h.model.scanFeedback == .scanning)
+    }
+
+    @Test func scanAgainOffWiFiShowsNoSpinner() async {
+        let h = Harness(known: [tvA], selected: tvA.id)
+        await h.appear()
+        h.discovery.finish()
+        await drain()
+        h.wifi.isOn = false
+        h.model.scanAgain()
+        #expect(h.model.scanFeedback == nil)
+        #expect(h.model.screen == .noWiFi)
+    }
+
+    @Test func backgroundCancelsScanFeedback() async {
+        let h = Harness(known: [tvA], selected: tvA.id)
+        await h.appear()
+        h.discovery.finish()
+        await drain()
+        h.model.scanAgain()
+        #expect(h.model.scanFeedback == .scanning)
+        h.model.scenePhaseChanged(.background)
+        #expect(h.model.scanFeedback == nil)
+    }
+
     @Test func multipleTVsRequireChoice() async {
         let h = Harness()
         await h.appear()

@@ -21,6 +21,18 @@ extension TVStatus {
     }
 }
 
+extension ScanFeedback {
+    /// The line the TV card shows instead of the TV's details.
+    var text: String {
+        switch self {
+        case .scanning: "Looking for TVs…"
+        case .found(0): "No new TVs found"
+        case .found(1): "Found 1 new TV"
+        case .found(let count): "Found \(count) new TVs"
+        }
+    }
+}
+
 /// The card at the top: the selected TV with its status. Tapping it opens a menu of the known TVs
 /// and the TV management actions.
 struct TVPicker: View {
@@ -56,7 +68,10 @@ struct TVPicker: View {
             }
             Section {
                 if let onAddTV { Button("Add TV by IP Address…", systemImage: "plus") { onAddTV() } }
-                Button("Scan Again", systemImage: "arrow.clockwise") { model.rescan() }
+                Button(isScanning ? "Scanning…" : "Scan Again", systemImage: "arrow.clockwise") {
+                    model.scanAgain()
+                }
+                .disabled(isScanning)
             }
         } label: {
             card
@@ -64,9 +79,34 @@ struct TVPicker: View {
         .buttonStyle(RemoteKeyStyle())
         .tint(.primary)
         .accessibilityLabel("TV picker")
-        .accessibilityValue(selected.map { "\($0.title), \($0.status.displayName)" } ?? "No TV selected")
+        .accessibilityValue(accessibilityValue)
         .accessibilityHint("Shows your TVs")
         .accessibilityAddTraits(.isButton)
+        .sensoryFeedback(trigger: model.scanFeedback) { _, new in
+            switch new {
+            case .scanning: .impact(weight: .light)
+            case .found: .success
+            case nil: nil
+            }
+        }
+        .onChange(of: model.scanFeedback) { _, new in
+            if let new, new != .scanning {
+                AccessibilityNotification.Announcement(new.text).post()
+            }
+        }
+    }
+
+    private var accessibilityValue: String {
+        let tv = selected.map { "\($0.title), \($0.status.displayName)" } ?? "No TV selected"
+        if let feedback = model.scanFeedback { return "\(tv). \(feedback.text)" }
+        return tv
+    }
+
+    private var isScanning: Bool { model.scanFeedback == .scanning }
+
+    private var detailText: String? {
+        if let feedback = model.scanFeedback { return feedback.text }
+        return selected.map { "\($0.subtitle) · \($0.status.displayName)" }
     }
 
     private var selection: Binding<TVID?> {
@@ -84,18 +124,26 @@ struct TVPicker: View {
                 Text(selected?.title ?? "Choose a TV")
                     .font(.headline)
                     .foregroundStyle(.primary)
-                if let selected {
-                    Text("\(selected.subtitle) · \(selected.status.displayName)")
+                if let detailText {
+                    Text(detailText)
                         .font(.footnote)
                         .foregroundStyle(.secondary)
+                        .contentTransition(.opacity)
                 }
             }
             .multilineTextAlignment(.leading)
             Spacer(minLength: 8)
-            Image(systemName: "chevron.down")
-                .font(.footnote.weight(.semibold))
-                .foregroundStyle(.secondary)
+            if isScanning {
+                ProgressView()
+                    .controlSize(.small)
+                    .accessibilityHidden(true)
+            } else {
+                Image(systemName: "chevron.down")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.secondary)
+            }
         }
+        .animation(.default, value: model.scanFeedback)
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
         .frame(maxWidth: .infinity, alignment: .leading)

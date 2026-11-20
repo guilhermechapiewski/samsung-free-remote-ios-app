@@ -22,6 +22,13 @@ enum ScreenState: Equatable {
 }
 
 /// What a running power toggle is doing, as decided by the power planner.
+/// Feedback for a scan the user started with Scan Again. Automatic scans show none.
+enum ScanFeedback: Equatable {
+    case scanning
+    /// The scan finished; `newTVs` is how many TVs it found that the app did not know before.
+    case found(newTVs: Int)
+}
+
 enum PowerDirection: Equatable {
     case turningOn, turningOff
 }
@@ -68,6 +75,8 @@ final class AppModel {
     /// answering the permission prompt), up to `deniedRetryLimit` times.
     static let deniedRetryInterval: Duration = .seconds(3)
     static let deniedRetryLimit = 20
+    /// How long a Scan Again result stays on screen.
+    static let scanResultDuration: Duration = .seconds(3)
 
     private static let log = Logger(subsystem: "FreeRemote", category: "AppModel")
 
@@ -83,6 +92,8 @@ final class AppModel {
     var statusMessage: String?
     /// The TV to show the one-time "Power On with Mobile" tip for, or nil.
     var powerTipTV: TVID?
+    /// Progress and result of a user-started scan, or nil.
+    private(set) var scanFeedback: ScanFeedback?
 
     private var onWiFi = true
     private var localNetworkDenied = false
@@ -116,6 +127,9 @@ final class AppModel {
     /// The last completed scan found no TV (e.g. it ran while the Local Network prompt was up).
     @ObservationIgnored private var lastScanFoundNothing = false
     @ObservationIgnored private var deniedRetryTask: Task<Void, Never>?
+    /// The TVs known when the user started a scan; nil while no user-started scan is running.
+    @ObservationIgnored private var scanAgainBaseline: Set<TVID>?
+    @ObservationIgnored private var scanResultTask: Task<Void, Never>?
     @ObservationIgnored private var labelTask: Task<Void, Never>?
     @ObservationIgnored private var appeared = false
     @ObservationIgnored private var inBackground = false
@@ -204,7 +218,17 @@ final class AppModel {
         refresh()
     }
 
-    private func refresh() {
+    /// The user's Scan Again: like `rescan()`, but shows progress and then how many new TVs were
+    /// found. Joins a scan that is already running instead of restarting it.
+    func scanAgain() {
+        guard scanFeedback != .scanning else { return }
+        clearScanFeedback()
+        scanAgainBaseline = Set(registry.tvs.keys)
+        scanFeedback = .scanning
+        refresh(restartScan: !scanning)
+    }
+
+    private func refresh(restartScan: Bool = true) {
         onWiFi = env.wifiInterface() != nil
         guard onWiFi else {
             repeater.end()
@@ -214,7 +238,30 @@ final class AppModel {
             return
         }
         if let id = selectedID, current == nil || sessionFailed { openSession(id) }
-        startScan()
+        if restartScan { startScan() }
+    }
+
+    private func clearScanFeedback() {
+        scanResultTask?.cancel()
+        scanResultTask = nil
+        scanAgainBaseline = nil
+        scanFeedback = nil
+    }
+
+    /// Shows the result of a user-started scan for `scanResultDuration`.
+    private func finishScanAgain(baseline: Set<TVID>) {
+        scanAgainBaseline = nil
+        scanFeedback = .found(newTVs: foundThisScan.subtracting(baseline).count)
+        let clock = env.clock
+        scanResultTask = Task { [weak self] in
+            do {
+                try await clock.sleep(for: Self.scanResultDuration)
+            } catch {
+                return // cancelled: a newer scan or the background took over
+            }
+            self?.scanResultTask = nil
+            self?.scanFeedback = nil
+        }
     }
 
     // MARK: - Discovery
@@ -245,6 +292,7 @@ final class AppModel {
         scanTask = nil
         scanGeneration += 1
         scanning = false
+        clearScanFeedback()
     }
 
     private func handle(_ event: DiscoveryEvent) {
@@ -309,6 +357,7 @@ final class AppModel {
         scanning = false
         lastScanFoundNothing = foundThisScan.isEmpty
         seen = seen.filter { foundThisScan.contains($0.key) }
+        if let baseline = scanAgainBaseline { finishScanAgain(baseline: baseline) }
         // With no selection, pick the TV only when there is no choice to make.
         if selectedID == nil, registry.tvs.count == 1, let only = registry.tvs.keys.first {
             select(only)

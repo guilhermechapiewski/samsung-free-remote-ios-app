@@ -328,6 +328,9 @@ Network permissions are needed), and an explicit **Requirements** section:
   "Free Remote for Samsung TV"; the pairing name sent to TVs is also "TV Remote" (2026-11-20; TVs paired earlier as "Free Remote" ask for Allow once more).
 - Icon: original artwork (TV and remote) on a Samsung-style cobalt blue. Never Samsung's logo or wordmark
   (App Review 5.2.1/5.2.2), unless Samsung grants written permission.
+- Scan Again feedback (owner, 2026-11-20): a user-started scan shows a spinner and "Looking for TVs…" on
+  the TV card, then "Found N new TVs" / "No new TVs found" for 3 s, with light and success haptics and a
+  VoiceOver announcement. A tap during a running scan joins it. Automatic scans stay silent.
 - ~~Release waits for multicast entitlement approval.~~ Revised 2026-11-19: ship 1.0 without it; add
   multicast in a later release once Apple approves (see §3).
 - Scope runs through submission-ready; owner presses Submit.

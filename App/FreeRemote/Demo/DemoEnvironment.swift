@@ -69,11 +69,19 @@ enum DemoEnvironment {
 
         let interface = IPv4Interface(name: "en0", address: 0x0A00_0002, netmask: 0xFFFF_FF00)
         let fetcher = DemoFetcher()
+        let scans = DemoScanCounter()
         return AppEnvironment(
             makeDiscovery: { _ in
-                AsyncStream { continuation in
-                    for info in found { continuation.yield(.found(info)) }
-                    continuation.finish()
+                // The launch scan answers at once (screenshots); later scans take a moment, like a
+                // real one, so Scan Again shows its progress.
+                let isFirst = scans.next() == 1
+                return AsyncStream { continuation in
+                    let task = Task {
+                        if !isFirst { try? await Task.sleep(for: .seconds(2)) }
+                        for info in found { continuation.yield(.found(info)) }
+                        continuation.finish()
+                    }
+                    continuation.onTermination = { _ in task.cancel() }
                 }
             },
             makeSession: { _, _ in DemoSession(connectsTo: connectsTo, asksForText: scenario == .keyboard, keyLog: keyLog) },
@@ -227,4 +235,12 @@ struct DemoKeyLogView: View {
             .frame(width: 1, height: 1)
             .accessibilityElement()
     }
+}
+
+/// Counts demo scans (shared by the discovery closure).
+private final class DemoScanCounter: Sendable {
+    private let count = Mutex(0)
+
+    /// Records one more scan and returns how many there have been.
+    func next() -> Int { count.withLock { $0 += 1; return $0 } }
 }
