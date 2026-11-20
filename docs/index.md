@@ -14,8 +14,8 @@ into the TV's search boxes.
 <img src="images/remote.png" alt="The remote screen" width="300">
 
 - [Privacy Policy](privacy/)
-- [Support and bug reports](https://github.com/guilhermechapiewski/samsung-free-remote-ios-app/issues)
-- [Source code](https://github.com/guilhermechapiewski/samsung-free-remote-ios-app) (MIT license)
+- [Support and bug reports](https://github.com/guilhermechapiewski/samsung-simple-remote-ios-app/issues)
+- [Source code](https://github.com/guilhermechapiewski/samsung-simple-remote-ios-app) (MIT license)
 
 **Requirements:** an iPhone with iOS 27 or later, and a Samsung Smart TV running Tizen on the same Wi-Fi
 network. To turn the TV on from the app, turn on the TV's "Power On with Mobile" setting.
