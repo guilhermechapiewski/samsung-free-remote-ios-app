@@ -39,6 +39,8 @@ struct RemoteView: View {
             }
         }
         .background(Color.remoteBackground.ignoresSafeArea())
+        // A light tick for each repeated click of a held key.
+        .sensoryFeedback(.impact(weight: .light, intensity: 0.6), trigger: model.holdRepeats)
     }
 
     private var content: some View {

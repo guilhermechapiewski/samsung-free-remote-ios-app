@@ -117,6 +117,9 @@ final class AppModel {
     /// they show as asleep until seen on again.
     private var turnedOffTVs: Set<TVID> = []
 
+    /// Counts the repeated clicks of holds (not the first click of each), to drive the repeat haptic.
+    private(set) var holdRepeats = 0
+
     @ObservationIgnored private let env: AppEnvironment
     /// One power controller per TV, so each TV has its own in-flight guard.
     @ObservationIgnored private var powerControllers: [TVID: any PowerToggling] = [:]
@@ -149,13 +152,13 @@ final class AppModel {
     @ObservationIgnored private var labelTask: Task<Void, Never>?
     @ObservationIgnored private var appeared = false
     @ObservationIgnored private var inBackground = false
-    @ObservationIgnored private var nextPlayPauseIsPause = true
 
     init(env: AppEnvironment) {
         self.env = env
         repeater = RepeatController(clock: env.clock, strategy: .default) { [weak self] key, action in
             await self?.sendFromHold(key, action)
         }
+        repeater.onRepeat = { [weak self] in self?.holdRepeats += 1 }
         loadRemembered()
     }
 
@@ -421,7 +424,6 @@ final class AppModel {
         closeSession()
         let handle = SessionHandle(host: tv.lastHost, session: env.makeSession(id, tv.lastHost), after: teardown)
         current = handle
-        nextPlayPauseIsPause = true
         let session = handle.session
         handle.observers = [
             Task { [weak self] in
@@ -504,10 +506,9 @@ final class AppModel {
         send(key, .click)
     }
 
-    /// Alternates KEY_PAUSE and KEY_PLAY, starting with KEY_PAUSE.
+    /// One KEY_PLAY_BACK click, which toggles play and pause on the TV.
     func playPause() {
-        guard send(nextPlayPauseIsPause ? .pause : .play, .click) != nil else { return }
-        nextPlayPauseIsPause.toggle()
+        send(.playPause, .click)
     }
 
     func beginHold(_ key: RemoteKey) {

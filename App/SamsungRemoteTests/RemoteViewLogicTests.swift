@@ -12,6 +12,11 @@ import SamsungTVKit
         #expect(!RemoteAvailability(screen: .chooseTV, isConnected: false, hasSelection: false).controls)
     }
 
+    @Test func addressFieldNormalizesCommasAndWhitespace() {
+        #expect(AddTVSheet.normalized("192,168,0,20") == "192.168.0.20")
+        #expect(AddTVSheet.normalized(" 10.0.0.5 ") == "10.0.0.5")
+    }
+
     @Test func powerOnlyNeedsASelectedTV() {
         // Power can wake a TV the app cannot reach.
         #expect(RemoteAvailability(screen: .ready, isConnected: false, hasSelection: true).power)

@@ -39,6 +39,58 @@ private func settle(_ condition: () -> Bool) async {
         controller.end()
     }
 
+    @Test func initialDelayThenRepeatsEveryInterval() async {
+        let clock = TestClock()
+        let log = SendLog()
+        let controller = RepeatController(clock: clock, strategy: .default) { log.record($0, $1) }
+
+        controller.begin(.volumeUp)
+        await clock.waitForSleepers(1)
+        #expect(log.all.count == 1)
+
+        clock.advance(by: .milliseconds(399)) // released just before the delay: a tap, one click
+        for _ in 0..<100 { await Task.yield() }
+        #expect(log.all.count == 1)
+
+        clock.advance(by: .milliseconds(1)) // 400 ms: the second click
+        await settle { log.all.count == 2 }
+        await clock.waitForSleepers(1)
+        #expect(log.all.count == 2)
+
+        clock.advance(by: .milliseconds(100))
+        await settle { log.all.count == 3 }
+        await clock.waitForSleepers(1)
+        clock.advance(by: .milliseconds(100))
+        await settle { log.all.count == 4 }
+        #expect(log.all.count == 4)
+
+        controller.end()
+        await clock.waitForSleepers(0)
+        clock.advance(by: .seconds(1))
+        for _ in 0..<100 { await Task.yield() }
+        #expect(log.all.count == 4)
+    }
+
+    @Test func reportsEveryRepeatButNotTheFirstClick() async {
+        let clock = TestClock()
+        let log = SendLog()
+        let controller = RepeatController(clock: clock, strategy: .default) { log.record($0, $1) }
+        var repeats = 0
+        controller.onRepeat = { repeats += 1 }
+
+        controller.begin(.up)
+        await clock.waitForSleepers(1)
+        #expect(repeats == 0)
+        clock.advance(by: .milliseconds(400))
+        await settle { log.all.count == 2 }
+        await clock.waitForSleepers(1)
+        #expect(repeats == 1)
+        clock.advance(by: .milliseconds(100))
+        await settle { log.all.count == 3 }
+        #expect(repeats == 2)
+        controller.end()
+    }
+
     @Test func cancelStopsRepeatingAndSendsRelease() async {
         // .clickEvery: end() stops the repetition.
         let clock = TestClock()

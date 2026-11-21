@@ -573,13 +573,18 @@ private let tvC = info("uuid:c", host: "192.168.1.12", name: "Alpha", model: "QE
 
         h.model.beginHold(.down)
         await h.clock.waitForSleepers(2) // plus the repeat timer
-        h.clock.advance(by: .milliseconds(150))
+        #expect(h.model.holdRepeats == 0)
+        h.clock.advance(by: .milliseconds(400))
         await settle { session.snapshot.sent.count == 2 }
+        await h.clock.waitForSleepers(2)
+        h.clock.advance(by: .milliseconds(100))
+        await settle { session.snapshot.sent.count == 3 }
         h.model.endHold()
         await h.clock.waitForSleepers(1)
         h.clock.advance(by: .seconds(1))
         await drain()
-        #expect(session.snapshot.sent == ["KEY_DOWN", "KEY_DOWN"])
+        #expect(session.snapshot.sent == ["KEY_DOWN", "KEY_DOWN", "KEY_DOWN"])
+        #expect(h.model.holdRepeats == 2)
     }
 
     @Test func pairingStateShowsPairingScreen() async {
@@ -1283,16 +1288,23 @@ private let tvC = info("uuid:c", host: "192.168.1.12", name: "Alpha", model: "QE
         #expect(h.model.statusEvent == nil)
     }
 
-    @Test func playPauseAlternates() async throws {
+    @Test func playPauseSendsTheToggleKeyEveryTime() async throws {
         let h = Harness(known: [tvA], selected: tvA.id)
         await h.appear()
         await h.connectCurrent()
         h.model.playPause()
         h.model.playPause()
-        h.model.playPause()
         let session = try #require(h.sessions.last)
-        await settle { session.snapshot.sent.count == 3 }
-        #expect(session.snapshot.sent == ["KEY_PAUSE", "KEY_PLAY", "KEY_PAUSE"])
+        await settle { session.snapshot.sent.count == 2 }
+        #expect(session.snapshot.sent == ["KEY_PLAY_BACK", "KEY_PLAY_BACK"])
+    }
+
+    @Test func playPauseDoesNothingWhenNotConnected() async {
+        let h = Harness(known: [tvA], selected: tvA.id)
+        await h.appear()
+        h.model.playPause()
+        for _ in 0..<100 { await Task.yield() }
+        #expect(h.sessions.last?.snapshot.sent.isEmpty ?? true)
     }
 
     @Test func keyboardEventsAndText() async throws {

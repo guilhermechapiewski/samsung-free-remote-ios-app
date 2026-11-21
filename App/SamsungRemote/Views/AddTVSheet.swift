@@ -24,7 +24,12 @@ struct AddTVSheet: View {
                         .autocorrectionDisabled()
                         .textInputAutocapitalization(.never)
                         .focused($focused)
-                        .onChange(of: address) { error = nil }
+                        .onChange(of: address) {
+                            error = nil
+                            // Only the comma becomes a dot while typing; trimming waits for add().
+                            let dotted = address.replacingOccurrences(of: ",", with: ".")
+                            if dotted != address { address = dotted }
+                        }
                         .accessibilityLabel("IP address")
                         .accessibilityIdentifier("IP address")
                 } header: {
@@ -61,8 +66,14 @@ struct AddTVSheet: View {
         }
     }
 
+    /// The address as the user meant it: commas (the decimal pad's separator in many locales) become dots,
+    /// surrounding whitespace goes.
+    static func normalized(_ input: String) -> String {
+        input.replacingOccurrences(of: ",", with: ".").trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     private func add() {
-        let host = address.trimmingCharacters(in: .whitespacesAndNewlines)
+        let host = Self.normalized(address)
         guard LocalAddress.isAllowed(host) else {
             error = Self.invalidAddressMessage
             return
