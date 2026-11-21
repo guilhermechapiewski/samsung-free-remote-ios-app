@@ -35,8 +35,8 @@ works, reuse the code under the [MIT license](LICENSE), report problems, and con
 - Choose "Allow" on the TV the first time the app connects.
 - To turn the TV on from the app, enable the TV's "Power On with Mobile" (network standby) setting. A TV that
   has been off for a long time may need its own remote to turn on.
-- Automatic discovery needs AirPlay on in the TV's settings (on by default); otherwise add the TV by its IP
-  address.
+- Keep AirPlay on in the TV's settings (on by default) for the quickest discovery; if the TV still isn't found,
+  add it by its IP address.
 - Local Network permission granted on the iPhone (Settings > Privacy & Security > Local Network).
 - iPhone with iOS 27 or later.
 
