@@ -172,6 +172,15 @@ struct TVMenuPanel: View {
                 onClose()
                 openURL(AppLinks.privacyPolicy)
             }
+            if let version = AppVersion.text {
+                Text(version)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 10)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(version)
+            }
         }
     }
 

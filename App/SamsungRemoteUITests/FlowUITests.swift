@@ -51,6 +51,7 @@ final class FlowUITests: XCTestCase {
     func testDemoRemoteSendsKeys() {
         let app = launch()
         waitForRemote(app)
+        attachScreenshot(app, "remote-layout")
         XCTAssertTrue(app.buttons["Power"].exists)
 
         // A hold key tapped once sends exactly one key.
@@ -87,6 +88,7 @@ final class FlowUITests: XCTestCase {
         openMenu(app)
         XCTAssertTrue(app.buttons["Feedback & Bug Reports"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["Privacy Policy"].exists) // required in the app by App Review 5.1.1(i)
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'Version '")).firstMatch.exists)
         attachScreenshot(app, "menu")
         close.tap()
         XCTAssertTrue(close.waitForNonExistence(timeout: 5))
@@ -154,7 +156,7 @@ final class FlowUITests: XCTestCase {
         let field = app.textFields["TV name"]
         XCTAssertTrue(field.waitForExistence(timeout: 5))
         XCTAssertEqual(field.value as? String, "Living Room")
-        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'This name is only on your devices.'"))
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'This name is only on your devices. Leave it empty'"))
             .firstMatch.exists)
         // Put the cursor at the end, then replace the name.
         field.coordinate(withNormalizedOffset: CGVector(dx: 0.97, dy: 0.5)).tap()
@@ -235,6 +237,7 @@ final class FlowUITests: XCTestCase {
     func testChooseTVSelectsTV() {
         let app = launch(["-demo", "-demo-choose"])
         XCTAssertTrue(app.staticTexts["Choose your TV"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["Can't Find Your TV?"].exists)
         app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Living Room'")).firstMatch.tap()
         waitForRemote(app)
     }
@@ -246,6 +249,10 @@ final class FlowUITests: XCTestCase {
         XCTAssertTrue(field.waitForExistence(timeout: 15))
         field.typeText("hello")
         app.buttons["send-text"].tap()
+        XCTAssertTrue(app.staticTexts["Sent"].waitForExistence(timeout: 5))
+        // The field keeps keyboard focus (a hardware keyboard may hide the on-screen one).
+        XCTAssertEqual(field.value(forKey: "hasKeyboardFocus") as? Bool, true,
+                       "the text field keeps keyboard focus after Send")
         let lastText = app.descendants(matching: .any)["demo-last-text"]
         let sent = NSPredicate(format: "label == 'hello'")
         wait(for: [expectation(for: sent, evaluatedWith: lastText)], timeout: 5)

@@ -265,6 +265,10 @@ struct StateCard: View {
                 Button(model.scanFeedback == .scanning ? "Scanning…" : "Scan Again") { model.scanAgain() }
                     .buttonStyle(.bordered)
                     .disabled(model.scanFeedback == .scanning)
+                if let onFindTVHelp {
+                    Button("Can't Find Your TV?", action: onFindTVHelp)
+                        .buttonStyle(.borderless)
+                }
             }
         case .pairingDenied:
             Button("Try Again") { model.rescan() }

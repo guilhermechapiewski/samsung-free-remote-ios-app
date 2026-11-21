@@ -111,7 +111,8 @@ struct RootView: View {
     private func sheetContent(_ sheet: Sheet) -> some View {
         switch sheet {
         case .rename(let id):
-            RenameSheet(currentTitle: model.tvs.first { $0.id == id }?.title ?? "") { model.rename(id, to: $0) }
+            RenameSheet(currentTitle: model.tvs.first { $0.id == id }?.title ?? "",
+                        reportedName: model.reportedName(for: id)) { model.rename(id, to: $0) }
         case .details(let id):
             TVDetailsSheet(id: id)
         case .addTV:

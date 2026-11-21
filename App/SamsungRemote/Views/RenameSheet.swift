@@ -4,18 +4,23 @@ import SwiftUI
 struct RenameSheet: View {
     static let note =
         // Not a menu path: it differs by model year (2025 TVs: Support → About This TV → Edit Name).
-        "This name is only on your devices. To change the name everyone sees, change Device Name in the "
-        + "TV's own settings (where it is depends on the model)."
+        "This name is only on your devices. Leave it empty to use the TV's own name. To change the name "
+        + "everyone sees, change Device Name in the TV's own settings (where it is depends on the model)."
+
+    /// The first `ICloudLabelStore.maxLength` characters.
+    static func limited(_ s: String) -> String { String(s.prefix(ICloudLabelStore.maxLength)) }
 
     let onSave: (String) -> Void
+    let reportedName: String?
 
     @State private var name: String
     @Environment(\.dismiss) private var dismiss
     @FocusState private var focused: Bool
 
     /// `currentTitle` prefills the field.
-    init(currentTitle: String, onSave: @escaping (String) -> Void) {
+    init(currentTitle: String, reportedName: String? = nil, onSave: @escaping (String) -> Void) {
         self.onSave = onSave
+        self.reportedName = reportedName
         _name = State(initialValue: currentTitle)
     }
 
@@ -23,12 +28,16 @@ struct RenameSheet: View {
         NavigationStack {
             Form {
                 Section {
-                    TextField("TV name", text: $name)
+                    TextField(reportedName ?? "TV name", text: $name)
                         .focused($focused)
                         .textInputAutocapitalization(.words)
                         .submitLabel(.done)
                         .onSubmit(save)
                         .accessibilityIdentifier("TV name")
+                        .onChange(of: name) { _, new in
+                            let limited = Self.limited(new)
+                            if limited != new { name = limited }
+                        }
                 } footer: {
                     Text(Self.note)
                 }

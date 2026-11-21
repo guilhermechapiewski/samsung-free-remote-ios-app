@@ -123,9 +123,21 @@ import SamsungTVKit
             == "This TV's security identity changed (this can happen after a software update). "
             + "Pair again to continue.")
         #expect(RenameSheet.note
-            == "This name is only on your devices. To change the name everyone sees, change Device Name in the "
-            + "TV's own settings (where it is depends on the model).")
+            == "This name is only on your devices. Leave it empty to use the TV's own name. To change the name "
+            + "everyone sees, change Device Name in the TV's own settings (where it is depends on the model).")
         #expect(AddTVSheet.invalidAddressMessage == "Enter a local IP address like 192.168.0.20.")
+    }
+
+    @Test func appVersionText() {
+        #expect(AppVersion.text(short: "1.0.1", build: "3") == "Version 1.0.1 (3)")
+        #expect(AppVersion.text(short: nil, build: "3") == nil)
+        #expect(AppVersion.text(short: "1.0.1", build: nil) == nil)
+    }
+
+    @Test func renameLimitKeepsFirst40Characters() {
+        let long = String(repeating: "a", count: 40) + "bcd"
+        #expect(RenameSheet.limited(long) == String(repeating: "a", count: 40))
+        #expect(RenameSheet.limited("Den") == "Den")
     }
 
     @Test func demoKeyLogRecordsLastKey() async {

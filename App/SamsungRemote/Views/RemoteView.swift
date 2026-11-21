@@ -45,7 +45,7 @@ struct RemoteView: View {
 
     private var content: some View {
         VStack(spacing: 16) {
-            Spacer(minLength: 4)
+            Spacer(minLength: 4).frame(maxHeight: 24)
             topRow
             StatusView(model.status)
             DPad(onBegin: model.beginHold, onEnd: model.endHold, onPress: model.press)
@@ -53,7 +53,6 @@ struct RemoteView: View {
                 .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
             Spacer(minLength: 4)
             bottomRow
-            Spacer(minLength: 4)
         }
         .padding(.horizontal, 24)
         .padding(.vertical, 12)

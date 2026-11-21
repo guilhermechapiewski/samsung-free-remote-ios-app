@@ -716,6 +716,9 @@ final class AppModel {
 
     // MARK: - Managing TVs
 
+    /// The TV's own name, ignoring any label.
+    func reportedName(for id: TVID) -> String? { registry.tvs[id]?.reportedName }
+
     /// Sets the TV's label; nil, empty or whitespace-only clears it.
     func rename(_ id: TVID, to label: String?) {
         let trimmed = label?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""

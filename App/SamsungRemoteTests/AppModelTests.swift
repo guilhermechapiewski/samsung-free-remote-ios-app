@@ -418,6 +418,14 @@ private let tvC = info("uuid:c", host: "192.168.1.12", name: "Alpha", model: "QE
         #expect(h.model.screen == .localNetworkDenied)
     }
 
+    @Test func reportedNameIgnoresLabel() async {
+        let h = Harness(known: [tvA])
+        h.labels.setLabel("Den", for: tvA.id)
+        await h.appear()
+        #expect(h.model.reportedName(for: tvA.id) == "Bravo")
+        #expect(h.model.tvs.map(\.title) == ["Den"])
+    }
+
     @Test func labelOverridesReportedName() async {
         let h = Harness(known: [tvA])
         h.labels.setLabel("Den", for: tvA.id)
