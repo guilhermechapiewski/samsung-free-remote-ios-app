@@ -88,6 +88,19 @@ import SamsungTVKit
         }
     }
 
+    @Test func findTVHelpCopyIsExact() {
+        #expect(FindTVHelp.title == "Can't Find Your TV?")
+        #expect(FindTVHelp.steps.map(\.title) == ["Turn the TV on.", "Use the same Wi-Fi.", "Turn on AirPlay on the TV.",
+                                                  "Restart the TV.", "Add it by IP address."])
+        #expect(FindTVHelp.steps.map(\.detail) == [
+            "A TV can only be found while it's on.",
+            "Your iPhone and TV must be on the same network. Guest networks and networks that keep devices apart don't work.",
+            "On most models: Settings → All Settings → Connection → Apple AirPlay Settings → AirPlay: On.",
+            "Turning it off and on with the remote isn't enough. Point the remote at the TV and hold the power button until the TV turns off and the Samsung logo appears, then let go. Wait about a minute after the TV is back, then tap Scan Again.",
+            "On most models, the TV shows its IP address under Settings → All Settings → Connection → Network → Network Status → IP Settings. Then tap Add TV by IP Address.",
+        ])
+    }
+
     @Test func stateCardCopyIsExact() {
         #expect(StateCard.message(for: .noWiFi) == "Connect to Wi-Fi to control your TV.")
         #expect(StateCard.message(for: .localNetworkDenied)

@@ -8,6 +8,7 @@ struct RootView: View {
         case rename(TVID)
         case details(TVID)
         case addTV
+        case findTVHelp
         case numberPad
         case text
 
@@ -16,6 +17,7 @@ struct RootView: View {
             case .rename(let id): "rename:\(id.rawValue)"
             case .details(let id): "details:\(id.rawValue)"
             case .addTV: "addTV"
+            case .findTVHelp: "findTVHelp"
             case .numberPad: "numberPad"
             case .text: "text"
             }
@@ -61,20 +63,7 @@ struct RootView: View {
                                 onForget: forget, onAddTV: addTV))
         // The card the menu grew from may be gone (Wi-Fi lost, TV forgotten on another device).
         .onChange(of: model.screen) { menuOpen = false }
-        .sheet(item: $sheet) { sheet in
-            switch sheet {
-            case .rename(let id):
-                RenameSheet(currentTitle: model.tvs.first { $0.id == id }?.title ?? "") { model.rename(id, to: $0) }
-            case .details(let id):
-                TVDetailsSheet(id: id)
-            case .addTV:
-                AddTVSheet()
-            case .numberPad:
-                NumberPadSheet()
-            case .text:
-                TextEntrySheet()
-            }
-        }
+        .sheet(item: $sheet) { sheetContent($0) }
         .confirmationDialog(forgetTitle, isPresented: forgetPresented, titleVisibility: .visible,
                             presenting: forgetting) { id in
             Button("Forget TV", role: .destructive) { model.forget(id) }
@@ -118,9 +107,28 @@ struct RootView: View {
         .background(Color.remoteBackground.ignoresSafeArea())
     }
 
+    @ViewBuilder
+    private func sheetContent(_ sheet: Sheet) -> some View {
+        switch sheet {
+        case .rename(let id):
+            RenameSheet(currentTitle: model.tvs.first { $0.id == id }?.title ?? "") { model.rename(id, to: $0) }
+        case .details(let id):
+            TVDetailsSheet(id: id)
+        case .addTV:
+            AddTVSheet()
+        case .findTVHelp:
+            FindTVHelpSheet(onScanAgain: { self.sheet = nil; model.scanAgain() }, onAddTV: { self.sheet = .addTV })
+        case .numberPad:
+            NumberPadSheet()
+        case .text:
+            TextEntrySheet()
+        }
+    }
+
     private func rename(_ id: TVID) { sheet = .rename(id) }
     private func forget(_ id: TVID) { forgetting = id }
     private func addTV() { sheet = .addTV }
+    private func findTVHelp() { sheet = .findTVHelp }
 
     private var forgetTitle: String {
         let name = model.tvs.first { $0.id == forgetting }?.title ?? "this TV"
