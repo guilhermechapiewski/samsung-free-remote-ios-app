@@ -39,9 +39,11 @@ confirmed on real hardware; see the checklist at the end.
   entitlement and finds TVs that advertise nothing. Because it is the costly part of a scan, a scan includes
   it only when the user started it (Scan Again, Try Again) or when no TV is known yet; otherwise Bonjour (and
   SSDP) plus probing the known addresses look for the TVs. A known TV missing from a scan is no reason to
-  sweep: usually it is simply off. When the selected TV misses 5 presence checks in a row (10 s) while the app
-  is in front, one scan with the sweep runs in case the TV moved to another address; it runs again only after
-  the TV answers, another TV is selected or the app returns from the background.
+  sweep: usually it is simply off. The one automatic exception: when the selected TV has not answered 5
+  presence checks in a row (about 10 s) while the app is in front, one scan with the sweep runs in case the TV
+  moved to another address. It is limited to once per foreground period and once per 24 hours per TV, and is
+  skipped for a TV the app just turned off. The once-per-foreground limit re-arms when the TV answers, another
+  TV is selected, Wi-Fi returns or the app returns from the background; the 24-hour limit does not.
 
 ## Device info
 
@@ -108,6 +110,7 @@ Use `tvprobe` (`swift build --product tvprobe`), per model generation:
   paragraph above).
 - [x] (b) Which of `KEY_PLAY`, `KEY_PAUSE`, `KEY_PLAY_BACK` toggles playback inside an app? A 2022 model:
   `KEY_PLAY_BACK` toggles (YouTube, ESPN); `KEY_PAUSE` only pauses and `KEY_PLAY` only plays.
+- [ ] (b2) Confirm `KEY_PLAY_BACK` toggles playback inside apps on other model years.
 - [ ] (c) `tvprobe listen <host>` while focusing a search box: record the exact IME event names, then
   check `tvprobe text <host> <string>` fills the box.
 - [ ] (d) Put the TV in standby with its remote: record the `PowerState` value from `tvprobe info` per model,

@@ -11,7 +11,8 @@ works, reuse the code under the [MIT license](LICENSE), report problems, and con
 ## Features
 
 - Automatic discovery of Samsung TVs on the local network, and "Add TV by IP address"
-- Also finds TVs that are not advertising AirPlay, by checking the Wi-Fi subnet directly
+- Also finds TVs that are not advertising AirPlay, by checking the Wi-Fi subnet directly (on the first scan and
+  when you tap Scan Again)
 - In-app help when a TV can't be found
 - Power on/off (state-aware; wakes TVs from network standby), volume, mute, channel up/down
 - Circular D-pad with OK, Back, Home, Play/Pause

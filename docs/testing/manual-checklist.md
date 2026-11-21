@@ -28,7 +28,7 @@ names or TV names. In public notes, refer to TVs only by model year and series.
   "Found N new TVs" or "No new TVs found" with a success tap; the card returns to normal after about 3 s.
   Automatic scans (launch, returning to the app) show none of this.
 - [ ] "Add TV by IP…" adds a TV by its address; a public or invalid address is rejected with a message.
-- [ ] With AirPlay turned off on a TV that is on, a scan still finds it (subnet sweep).
+- [ ] With AirPlay turned off on a TV that is on, Scan Again still finds it (subnet sweep).
 - [ ] A scan on the home Wi-Fi finishes in about the same time as before.
 - [ ] Relaunching the app shows remembered TVs immediately, including ones that are off (Unreachable/Asleep).
 
@@ -51,11 +51,15 @@ a haptic tap:
 - [ ] D-pad up, down, left, right, OK
 - [ ] Volume up/down, channel up/down
 - [ ] Back, Home, Play/Pause (pauses and resumes playback inside an app)
+- [ ] Play/Pause toggles playback inside apps (e.g. a streaming app); note the TV's model year.
 - [ ] "123" sheet: 0–9 change channel on live TV
 - [ ] With the TV disconnected, buttons are disabled and show why (not paired / asleep / unreachable).
 
 ## Hold-repeat
 
+- [ ] A quick tap on an arrow or volume up/down moves exactly once.
+- [ ] Holding an arrow or volume up/down repeats after a short pause, at about 10 steps per second, with a
+      light haptic tick for each repeat.
 - [ ] Holding volume up/down repeats steadily and stops immediately on release.
 - [ ] Holding channel up/down and each arrow repeats and stops on release.
 - [ ] Releasing after the app goes to the background (swipe home while holding) does not leave a key repeating.
@@ -86,6 +90,9 @@ a haptic tap:
 - [ ] **Airplane mode:** turn on airplane mode — the app shows a no Wi-Fi state; turn it off — the app
       reconnects without a relaunch.
 - [ ] Turning Wi-Fi off and on from Control Center updates the app without tapping Try Again.
+- [ ] **Address change with the app open:** with the app in front, give the TV a new address (renew its DHCP
+      lease on the router): the app finds it again within about 10 seconds (automatically at most once a day
+      per TV); Scan Again finds it at once.
 - [ ] Background the app for a minute, return: it reconnects promptly.
 - [ ] **Local Network denied:** in Settings > Privacy & Security > Local Network, turn Simple TV Remote for Samsung off; the
       app shows the permission state with a working link to Settings. Turn it back on: discovery works again.
@@ -119,6 +126,8 @@ a haptic tap:
       come and go (also at the largest text size, where it may use two lines). Lines with more to say
       show ⓘ; tapping opens the explanation.
 - [ ] Pressing Power shows "Turning on…" / "Turning off…" at once, with no older message flashing first.
+- [ ] With "Can't reach the TV" showing and the TV back on, tapping ⓘ and then Try Again in the status details
+      reconnects.
 - [ ] Turning the TV off with the app turns the card's dot orange (Asleep) right away.
 
 ## Control Center control
