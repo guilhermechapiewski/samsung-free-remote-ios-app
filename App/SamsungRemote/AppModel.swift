@@ -135,8 +135,6 @@ final class AppModel {
     @ObservationIgnored private var scanGeneration = 0
     /// The last completed scan found no TV (e.g. it ran while the Local Network prompt was up).
     @ObservationIgnored private var lastScanFoundNothing = false
-    /// The last completed scan did not find every known TV, so the next scan sweeps the subnet.
-    @ObservationIgnored private var lastScanMissedKnownTV = false
     /// The running scan includes the subnet sweep.
     @ObservationIgnored private var scanSweeps = false
     @ObservationIgnored private var deniedRetryTask: Task<Void, Never>?
@@ -150,15 +148,15 @@ final class AppModel {
     @ObservationIgnored private var missedWhileConnected = 0
     /// Consecutive watch checks the selected TV did not answer, in any watched session state.
     @ObservationIgnored private var missedChecks = 0
-    /// Time since the last scan started for a missing selected TV; nil before the first.
-    @ObservationIgnored private var sinceMissingTVRescan: (() -> Duration)?
+    /// The missing-TV rescan already ran for the selected TV in this foreground period (and the TV has
+    /// not answered since).
+    @ObservationIgnored private var missingTVRescanDone = false
     /// A connected TV that misses this many checks in a row is treated as gone (an open connection to a TV
     /// that lost power can take the transport's 15-30 s ping cycle to notice).
     static let missedChecksBeforeReconnect = 2
     /// When the selected TV misses this many watch checks in a row (it may have moved to another address),
-    /// a scan with the subnet sweep runs, at most once per `rescanForMissingTVInterval`.
+    /// a scan with the subnet sweep runs, once per foreground period for that TV until it answers again.
     static let missedChecksBeforeRescan = 5
-    static let rescanForMissingTVInterval: Duration = .seconds(60)
     /// The last watch check found the selected TV not answering while its session was retrying.
     private var watchFoundNoAnswer = false
     @ObservationIgnored private var labelTask: Task<Void, Never>?
@@ -249,6 +247,7 @@ final class AppModel {
         case .active:
             if inBackground {
                 inBackground = false
+                resetMissingTVRescan()
                 refresh()
             } else if appeared, localNetworkDenied || (!scanning && lastScanFoundNothing) {
                 // Back from a system alert (such as the Local Network prompt, answered after the
@@ -327,15 +326,15 @@ final class AppModel {
 
     // MARK: - Discovery
 
-    /// Starts a scan. It includes the subnet sweep (up to 1,024 probes) only when `sweepAnyway`, when
-    /// no TV is known, or when the last completed scan missed a known TV; otherwise Bonjour (and SSDP)
-    /// and probing the known addresses find every TV that answered last time.
+    /// Starts a scan. It includes the subnet sweep (up to 1,024 probes) only when `sweepAnyway` or when
+    /// no TV is known; otherwise Bonjour (and SSDP) and probing the known addresses look for the TVs.
+    /// (A known TV that is off misses every scan, so a missed TV is no reason to sweep.)
     private func startScan(sweepAnyway: Bool = false) {
         scanTask?.cancel()
         scanGeneration += 1
         let generation = scanGeneration
         scanning = true
-        let sweep = sweepAnyway || registry.tvs.isEmpty || lastScanMissedKnownTV
+        let sweep = sweepAnyway || registry.tvs.isEmpty
         scanSweeps = sweep
         foundThisScan = []
         forgottenThisScan = []
@@ -422,7 +421,6 @@ final class AppModel {
     private func finishScan() {
         scanning = false
         lastScanFoundNothing = foundThisScan.isEmpty
-        lastScanMissedKnownTV = registry.tvs.keys.contains { !foundThisScan.contains($0) }
         seen = seen.filter { foundThisScan.contains($0.key) }
         if let baseline = scanAgainBaseline { finishScanAgain(baseline: baseline) }
         // With no selection, pick the TV only when there is no choice to make.
@@ -438,7 +436,7 @@ final class AppModel {
         guard registry.tvs[id] != nil else { return }
         if id == selectedID, let current, current.host == registry.tvs[id]?.lastHost, !sessionFailed { return }
         repeater.end()
-        if id != selectedID { missedChecks = 0 }
+        if id != selectedID { resetMissingTVRescan() }
         selectedID = id
         env.userDefaults.set(id.rawValue, forKey: Self.selectedTVKey)
         statusEvent = nil
@@ -731,7 +729,7 @@ final class AppModel {
             repeater.end()
             closeSession()
             selectedID = nil
-            missedChecks = 0
+            resetMissingTVRescan()
             env.userDefaults.removeObject(forKey: Self.selectedTVKey)
             statusEvent = nil
         }
@@ -932,7 +930,7 @@ final class AppModel {
         }
         watchFoundNoAnswer = false
         missedWhileConnected = 0
-        missedChecks = 0
+        resetMissingTVRescan()
         handle(.found(info)) // reconnects a failed session when the TV is on; clears "off" when on
         if info.powerState != .on, sessionState == .connected, !selectedTurnedOff {
             // Turned off with its own remote into network standby: the connection may stay open.
@@ -946,19 +944,18 @@ final class AppModel {
     }
 
     /// The selected TV has missed `missedChecksBeforeRescan` checks in a row: it may have moved to another
-    /// address, so scan with the subnet sweep, at most once per `rescanForMissingTVInterval`. Shows no
+    /// address, so scan with the subnet sweep, once until the TV answers, another TV is selected or the app
+    /// returns from the background (a TV that is simply off would otherwise sweep over and over). Shows no
     /// Scan Again feedback.
     private func rescanIfSelectedTVMissing() {
-        guard missedChecks >= Self.missedChecksBeforeRescan, !scanning else { return }
-        if let elapsed = sinceMissingTVRescan?(), elapsed < Self.rescanForMissingTVInterval { return }
-        sinceMissingTVRescan = Self.stopwatch(env.clock)
+        guard missedChecks >= Self.missedChecksBeforeRescan, !missingTVRescanDone, !scanning else { return }
+        missingTVRescanDone = true
         startScan(sweepAnyway: true)
     }
 
-    /// Returns the time elapsed on `clock` since this call.
-    private static func stopwatch<C: Clock<Duration>>(_ clock: C) -> () -> Duration {
-        let start = clock.now
-        return { start.duration(to: clock.now) }
+    private func resetMissingTVRescan() {
+        missedChecks = 0
+        missingTVRescanDone = false
     }
 
     // MARK: - TV details

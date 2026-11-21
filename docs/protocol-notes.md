@@ -37,10 +37,11 @@ confirmed on real hardware; see the checklist at the end.
   each, nearest addresses first. Every address that accepts is a candidate and is confirmed with `/api/v2/`
   like the others. It needs neither multicast nor Bonjour, so it runs with and without the multicast
   entitlement and finds TVs that advertise nothing. Because it is the costly part of a scan, a scan includes
-  it only when the user started it (Scan Again, Try Again), when no TV is known yet, or when the previous
-  completed scan missed a known TV; otherwise Bonjour (and SSDP) plus probing the known addresses find every
-  TV that answered last time. When the selected TV misses 5 presence checks in a row (10 s) while the app is
-  in front, one scan with the sweep runs, at most once a minute, in case the TV moved to another address.
+  it only when the user started it (Scan Again, Try Again) or when no TV is known yet; otherwise Bonjour (and
+  SSDP) plus probing the known addresses look for the TVs. A known TV missing from a scan is no reason to
+  sweep: usually it is simply off. When the selected TV misses 5 presence checks in a row (10 s) while the app
+  is in front, one scan with the sweep runs in case the TV moved to another address; it runs again only after
+  the TV answers, another TV is selected or the app returns from the background.
 
 ## Device info
 

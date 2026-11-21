@@ -1713,10 +1713,10 @@ private let tvC = info("uuid:c", host: "192.168.1.12", name: "Alpha", model: "QE
         #expect(h.discovery.sweeps == [false, false])
     }
 
-    @Test func automaticScanSweepsAfterAScanMissedAKnownTV() async {
+    @Test func automaticScanSkipsTheSweepEvenAfterAScanMissedAKnownTV() async {
         let h = Harness(known: [tvA, tvB])
-        await foregroundAfterScan(h, found: [tvA]) // tvB did not answer
-        #expect(h.discovery.sweeps == [false, true])
+        await foregroundAfterScan(h, found: [tvA]) // tvB did not answer (e.g. it is off)
+        #expect(h.discovery.sweeps == [false, false])
     }
 
     @Test func userStartedScansSweep() async {
@@ -1810,27 +1810,50 @@ private let tvC = info("uuid:c", host: "192.168.1.12", name: "Alpha", model: "QE
 
     // MARK: - Rescanning for a missing TV
 
-    @Test func aSelectedTVMissingForFiveChecksRescansWithTheSweepAtMostOncePerMinute() async {
+    /// `misses` more unanswered watch checks; expects `scansAfter` scans, the last one sweeping.
+    private func miss(_ h: Harness, _ misses: Int, scansAfter: Int) async {
+        await tick(h, times: misses)
+        await settle { h.discovery.scans.count == scansAfter }
+        #expect(h.discovery.scans.count == scansAfter)
+        #expect(h.discovery.sweeps.last == true)
+    }
+
+    @Test func aSelectedTVMissingForFiveChecksRescansWithTheSweepOncePerForegroundPeriod() async {
+        var standby = tvA
+        standby.powerState = .standby
         let h = Harness(known: [tvA], selected: tvA.id) // the TV doesn't answer
         await unreachableSelected(h)
         await tick(h, times: AppModel.missedChecksBeforeRescan - 1)
         #expect(h.discovery.scans.count == 1)
-        await tick(h)
-        await settle { h.discovery.scans.count == 2 }
-        #expect(h.discovery.scans.count == 2)
-        #expect(h.discovery.sweeps.last == true)
+        await miss(h, 1, scansAfter: 2)
         #expect(h.model.scanFeedback == nil) // not the user's Scan Again
         h.discovery.finish() // it did not find the TV either
         await drain()
-        await tick(h, times: 5) // checks 6 to 10: still within the minute
+        await tick(h, times: 10) // still missing: no further sweep
         #expect(h.discovery.scans.count == 2)
 
-        // A minute after that rescan, the next miss rescans again.
-        await settle { h.clock.sleeperCount > 0 }
-        h.clock.advance(by: AppModel.rescanForMissingTVInterval)
-        await settle { h.discovery.scans.count == 3 }
+        // Back from the background: one more rescan after 5 misses.
+        h.model.scenePhaseChanged(.background)
+        h.model.scenePhaseChanged(.active)
+        await settle { h.discovery.scans.count == 3 && h.sessions.list.count == 2 }
+        #expect(h.discovery.sweeps.last == false) // the foreground scan is automatic
+        h.discovery.finish()
+        await settle { h.sessions.last?.snapshot.connects == 1 }
+        h.sessions.last?.emit(.failed(.unreachable))
+        await drain()
+        await tick(h, times: AppModel.missedChecksBeforeRescan - 1)
         #expect(h.discovery.scans.count == 3)
-        #expect(h.discovery.sweeps.last == true)
+        await miss(h, 1, scansAfter: 4)
+        h.discovery.finish()
+        await drain()
+
+        // It answers once (asleep: nothing reconnects), then goes missing again: one more rescan.
+        h.fetcher.answer(standby)
+        await tick(h)
+        h.fetcher.infos = [:]
+        await tick(h, times: AppModel.missedChecksBeforeRescan - 1)
+        #expect(h.discovery.scans.count == 4)
+        await miss(h, 1, scansAfter: 5)
     }
 
     @Test func anAnswerResetsTheMissedChecksBeforeARescan() async {
@@ -1849,6 +1872,5 @@ private let tvC = info("uuid:c", host: "192.168.1.12", name: "Alpha", model: "QE
 
     @Test func rescanConstants() {
         #expect(AppModel.missedChecksBeforeRescan == 5)
-        #expect(AppModel.rescanForMissingTVInterval == .seconds(60))
     }
 }
