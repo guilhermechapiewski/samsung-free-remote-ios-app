@@ -17,7 +17,11 @@ into the TV's search boxes.
 
 **Free, for real:** no ads, no in-app purchases, no subscriptions, no accounts and no tracking.
 
-<img src="images/remote.png" alt="The remote screen" width="300">
+<p style="display: flex; flex-wrap: wrap; gap: 16px;">
+  <img src="images/remote.png" alt="The remote screen" style="width: 200px; max-width: 30%; height: auto;">
+  <img src="images/picker.png" alt="The TV menu, listing your TVs" style="width: 200px; max-width: 30%; height: auto;">
+  <img src="images/rename.png" alt="Renaming a TV" style="width: 200px; max-width: 30%; height: auto;">
+</p>
 
 - [Privacy Policy](privacy/)
 - [Support and bug reports](https://github.com/guilhermechapiewski/samsung-simple-remote-ios-app/issues)
