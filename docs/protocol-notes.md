@@ -33,9 +33,10 @@ confirmed on real hardware; see the checklist at the end.
   a minute after boot. That model never answers SSDP, so without the multicast entitlement it can then only be
   added by IP address, and a saved TV is still found because known addresses are re-probed directly.
 - Subnet sweep: a TCP connect to port 8001 on every address of the Wi-Fi subnet (skipped above 1,024
-  addresses), 64 at a time with a 500 ms timeout each, nearest addresses first. Every address that accepts is a
-  candidate and is confirmed with `/api/v2/` like the others. It needs neither multicast nor Bonjour, so it
-  runs with and without the multicast entitlement and finds TVs that advertise nothing.
+  addresses (prefixes shorter than /22) and for non-contiguous netmasks), 64 at a time with a 500 ms timeout
+  each, nearest addresses first. Every address that accepts is a candidate and is confirmed with `/api/v2/`
+  like the others. It needs neither multicast nor Bonjour, so it runs with and without the multicast
+  entitlement and finds TVs that advertise nothing.
 
 ## Device info
 
@@ -82,16 +83,26 @@ State is read from the device-info `PowerState`:
   addresses. iOS refuses broadcasts without that entitlement (EHOSTUNREACH); the unicast packet reaches the
   TV only while its hardware address is still in the iPhone's or router's ARP cache.
 
-Key repeat for held keys is `RepeatStrategy`: `.pressRelease` or `.clickEvery(Duration)`; the default is
-repeated Click every 150 ms until measured otherwise (unverified).
+Key repeat for held keys is `RepeatStrategy`: `.pressRelease` or `.clickEvery(interval, initialDelay:)`.
+On a 2022 model both work: after Press the TV repeats by itself at about 10 steps per second until Release,
+and repeated Click steps once per click. The app uses Click, because a lost Release (dropped connection,
+app suspended) could run the volume to an end: one click at once, then after a 400 ms initial delay one
+every 100 ms until the key is let go, so a short tap stays a single step. Not verified on other model years.
+
+Playback keys on the same model: `KEY_PAUSE` only pauses, `KEY_PLAY` only plays, and `KEY_PLAY_BACK` toggles
+(tried in YouTube and ESPN), so `KEY_PLAY_BACK` (`RemoteKey.playPause`) suits a single play/pause button.
+Not verified on other model years.
 
 ## To verify on real TVs
 
 Use `tvprobe` (`swift build --product tvprobe`), per model generation:
 
-- [ ] (a) `tvprobe hold <host> KEY_VOLUP 2`: does Press/Release or repeated Click repeat correctly? Set
-  `RepeatStrategy.default` accordingly.
-- [ ] (b) Which of `KEY_PLAY`, `KEY_PAUSE`, `KEY_PLAY_BACK` toggles playback inside an app?
+- [x] (a) `tvprobe hold <host> KEY_VOLUP 2`: does Press/Release or repeated Click repeat correctly? Set
+  `RepeatStrategy.default` accordingly. A 2022 model: both repeat (Press/Release at about 10 steps per
+  second); the default is Click with a 400 ms initial delay and a 100 ms interval (see the key repeat
+  paragraph above).
+- [x] (b) Which of `KEY_PLAY`, `KEY_PAUSE`, `KEY_PLAY_BACK` toggles playback inside an app? A 2022 model:
+  `KEY_PLAY_BACK` toggles (YouTube, ESPN); `KEY_PAUSE` only pauses and `KEY_PLAY` only plays.
 - [ ] (c) `tvprobe listen <host>` while focusing a search box: record the exact IME event names, then
   check `tvprobe text <host> <string>` fills the box.
 - [ ] (d) Put the TV in standby with its remote: record the `PowerState` value from `tvprobe info` per model,

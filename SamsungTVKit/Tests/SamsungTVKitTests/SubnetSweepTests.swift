@@ -44,6 +44,7 @@ import Testing
         await task.value
         #expect(ContinuousClock.now - start < .seconds(1))
         #expect(prober.calls.count <= 64) // no new batches after cancellation
+        #expect(prober.cancellations > 0) // in-flight probes saw the cancellation
     }
 
     @Test func consumerStoppingEndsSweep() async {

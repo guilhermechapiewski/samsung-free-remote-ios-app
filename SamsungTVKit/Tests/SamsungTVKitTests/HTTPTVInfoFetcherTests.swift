@@ -7,10 +7,14 @@ private enum StubResult: Sendable {
     case response(status: Int, body: Data)
     case failure(URLError.Code)
     case redirect(to: URL)
+    /// A 200 with headers, then one byte every `interval`; it gives up after `limit` bytes so a broken
+    /// deadline fails the test instead of hanging it.
+    case drip(interval: TimeInterval, limit: Int)
 }
 
 private final class StubProtocol: URLProtocol, @unchecked Sendable {
-    // Safety: all shared state lives in Mutex-protected statics; instances only touch their own URLProtocol state.
+    // Safety: all shared state lives in Mutex-protected statics; instances only touch their own URLProtocol state
+    // and the Mutex-protected `stopped` flag.
     private static let state = Mutex<(result: StubResult, requests: [URL], timeouts: [TimeInterval],
                                       cachePolicies: [URLRequest.CachePolicy])>((.failure(.unknown), [], [], []))
 
@@ -29,7 +33,9 @@ private final class StubProtocol: URLProtocol, @unchecked Sendable {
 
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
-    override func stopLoading() {}
+    private let stopped = Mutex(false)
+
+    override func stopLoading() { stopped.withLock { $0 = true } }
 
     override func startLoading() {
         let url = request.url!
@@ -51,6 +57,19 @@ private final class StubProtocol: URLProtocol, @unchecked Sendable {
             client?.urlProtocolDidFinishLoading(self)
         case .failure(let code):
             client?.urlProtocol(self, didFailWithError: URLError(code))
+        case .drip(let interval, let limit):
+            let response = HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+            drip(every: interval, remaining: limit)
+        }
+    }
+
+    private func drip(every interval: TimeInterval, remaining: Int) {
+        DispatchQueue.global().asyncAfter(deadline: .now() + interval) { [self] in
+            guard !stopped.withLock({ $0 }) else { return }
+            guard remaining > 0 else { client?.urlProtocolDidFinishLoading(self); return }
+            client?.urlProtocol(self, didLoad: Data(" ".utf8))
+            drip(every: interval, remaining: remaining - 1)
         }
     }
 }
@@ -94,6 +113,16 @@ struct HTTPTVInfoFetcherTests {
         await #expect(throws: TVInfoError.unreachable) {
             try await makeFetcher(timeout: .milliseconds(100)).fetchInfo(host: "10.0.0.5")
         }
+    }
+
+    @Test func slowDripHitsOverallDeadline() async {
+        // Each byte arrives well within the per-packet timeout, so only an overall deadline ends this.
+        StubProtocol.configure(.drip(interval: 0.5, limit: 20))
+        let start = ContinuousClock.now
+        await #expect(throws: TVInfoError.unreachable) {
+            try await makeFetcher(timeout: .seconds(1)).fetchInfo(host: "10.0.0.5")
+        }
+        #expect(ContinuousClock.now - start < .milliseconds(1500))
     }
 
     @Test func nonOKStatusMapsToUnreachable() async {

@@ -30,7 +30,7 @@ final class RepeatController {
         case .pressRelease:
             pressedKey = key
             enqueue(key, .press)
-        case .clickEvery(let interval):
+        case .clickEvery(let interval, initialDelay: _): // the initial delay is not applied yet
             let clock = clock // a local: opening the stored existential directly fails to type-check
             repeating = Task {
                 while !Task.isCancelled {

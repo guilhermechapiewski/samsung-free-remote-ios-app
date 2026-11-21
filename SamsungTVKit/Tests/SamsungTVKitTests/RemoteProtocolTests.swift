@@ -61,7 +61,10 @@ import Foundation
     }
 
     @Test func remoteKeyValues() {
-        #expect(RemoteKey.allCases.count == 30)
+        #expect(RemoteKey.allCases.count == 31)
+        #expect(RemoteKey.playPause.rawValue == "KEY_PLAY_BACK")
+        #expect(RemoteKey.play.rawValue == "KEY_PLAY")
+        #expect(RemoteKey.pause.rawValue == "KEY_PAUSE")
         #expect(RemoteKey.back.rawValue == "KEY_RETURN")
         #expect(RemoteKey.hdmi3.rawValue == "KEY_HDMI3")
         #expect(RemoteKey.digit7.rawValue == "KEY_7")

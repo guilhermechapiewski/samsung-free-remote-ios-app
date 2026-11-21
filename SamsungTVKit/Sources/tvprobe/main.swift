@@ -209,7 +209,9 @@ func hold(_ host: String, _ keyName: String, _ seconds: Double) async {
     let k = parseKey(keyName)
     let session = await makeSession(host: host)
     await waitConnected(session)
-    guard case .clickEvery(let interval) = RepeatStrategy.default else { fail("default strategy is not clickEvery") }
+    guard case .clickEvery(let interval, let initialDelay) = RepeatStrategy.default else {
+        fail("default strategy is not clickEvery")
+    }
     var pressed = false
     do {
         out("press/release for \(seconds)s")
@@ -219,8 +221,10 @@ func hold(_ host: String, _ keyName: String, _ seconds: Double) async {
         try await session.send(k, .release)
         pressed = false
         try await Task.sleep(for: .seconds(1))
-        out("repeated click every \(interval) for \(seconds)s")
+        out("click, wait \(initialDelay), then click every \(interval), for \(seconds)s")
         let end = ContinuousClock.now + .seconds(seconds)
+        try await session.send(k, .click)
+        try await Task.sleep(for: initialDelay)
         while ContinuousClock.now < end {
             try await session.send(k, .click)
             try await Task.sleep(for: interval)

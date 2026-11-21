@@ -33,6 +33,11 @@ import Testing
     @Test func lowerLimitApplies() {
         #expect(SweepRange.hosts(around: iface("en0", "10.0.4.7", "255.255.252.0"), maxAddresses: 512).isEmpty)
     }
+    @Test func nonContiguousNetmaskYieldsNothing() {
+        #expect(SweepRange.hosts(around: iface("en0", "10.0.0.20", "255.0.255.0")).isEmpty)
+        // Small enough to pass the size limit (513 "addresses"), but still not a real subnet.
+        #expect(SweepRange.hosts(around: iface("en0", "10.0.0.20", "255.255.253.255")).isEmpty)
+    }
     @Test func publicAddressYieldsNothing() {
         #expect(SweepRange.hosts(around: iface("en0", "8.8.8.8", "255.255.255.240")).isEmpty)
     }

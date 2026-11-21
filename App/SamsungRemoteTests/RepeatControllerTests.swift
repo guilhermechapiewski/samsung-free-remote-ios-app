@@ -25,7 +25,7 @@ private func settle(_ condition: () -> Bool) async {
     @Test func clickEverySendsImmediatelyThenEveryInterval() async {
         let clock = TestClock()
         let log = SendLog()
-        let controller = RepeatController(clock: clock, strategy: .clickEvery(.milliseconds(150))) { log.record($0, $1) }
+        let controller = RepeatController(clock: clock, strategy: .clickEvery(.milliseconds(150), initialDelay: .milliseconds(150))) { log.record($0, $1) }
 
         controller.begin(.volumeUp)
         await clock.waitForSleepers(1)
@@ -43,7 +43,7 @@ private func settle(_ condition: () -> Bool) async {
         // .clickEvery: end() stops the repetition.
         let clock = TestClock()
         let clicks = SendLog()
-        let repeating = RepeatController(clock: clock, strategy: .clickEvery(.milliseconds(150))) { clicks.record($0, $1) }
+        let repeating = RepeatController(clock: clock, strategy: .clickEvery(.milliseconds(150), initialDelay: .milliseconds(150))) { clicks.record($0, $1) }
         repeating.begin(.up)
         await clock.waitForSleepers(1)
         repeating.end()

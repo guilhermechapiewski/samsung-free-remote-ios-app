@@ -22,6 +22,8 @@ public enum RemoteKey: String, Sendable, CaseIterable {
     case hdmi4 = "KEY_HDMI4"
     case play = "KEY_PLAY"
     case pause = "KEY_PAUSE"
+    /// Toggles playback (KEY_PAUSE only pauses and KEY_PLAY only plays; see docs/protocol-notes.md).
+    case playPause = "KEY_PLAY_BACK"
     case digit0 = "KEY_0"
     case digit1 = "KEY_1"
     case digit2 = "KEY_2"
@@ -41,10 +43,12 @@ public enum KeyAction: String, Sendable {
 }
 
 /// How the app repeats a held key (volume, arrows): one Press then Release, or repeated Clicks.
-/// The default is the conservative choice until verified on real TVs (see docs/protocol-notes.md).
+/// `.clickEvery` sends one click, waits `initialDelay`, then clicks every `interval` (like a
+/// keyboard's auto-repeat, so a short tap stays a single step). Both work on real TVs; the default
+/// uses Click because a lost Release could run the volume to an end (see docs/protocol-notes.md).
 public enum RepeatStrategy: Sendable, Equatable {
     case pressRelease
-    case clickEvery(Duration)
+    case clickEvery(Duration, initialDelay: Duration)
 
-    public static let `default`: RepeatStrategy = .clickEvery(.milliseconds(150))
+    public static let `default`: RepeatStrategy = .clickEvery(.milliseconds(100), initialDelay: .milliseconds(400))
 }

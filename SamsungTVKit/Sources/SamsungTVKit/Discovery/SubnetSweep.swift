@@ -41,7 +41,13 @@ public struct NWPortProber: PortProbing {
                     }
                 }
                 probe.connection.start(queue: queue)
-                queue.asyncAfter(deadline: .now() + Self.seconds(timeout)) { probe.finish(false) }
+                // Cancelled between install and start: finish already cancelled the connection, but
+                // start may have revived it, so cancel it again.
+                if probe.isDone {
+                    probe.connection.cancel()
+                    return
+                }
+                probe.scheduleTimeout(on: queue, after: Self.seconds(timeout))
             }
         } onCancel: {
             probe.finish(false)
@@ -57,7 +63,8 @@ public struct NWPortProber: PortProbing {
     private final class Probe: Sendable {
         private enum Phase {
             case idle
-            case waiting(CheckedContinuation<Bool, Never>)
+            /// `timeout` is the pending deadline, cancelled when the probe finishes early.
+            case waiting(CheckedContinuation<Bool, Never>, timeout: DispatchWorkItem?)
             case done
         }
 
@@ -73,20 +80,43 @@ public struct NWPortProber: PortProbing {
         func install(_ continuation: CheckedContinuation<Bool, Never>) -> Bool {
             let installed = phase.withLock { p in
                 guard case .idle = p else { return false }
-                p = .waiting(continuation)
+                p = .waiting(continuation, timeout: nil)
                 return true
             }
             if !installed { continuation.resume(returning: false) }
             return installed
         }
 
-        /// Ends the probe once: cancels the connection and resumes the caller, if it is waiting.
+        var isDone: Bool {
+            phase.withLock { p in
+                if case .done = p { return true }
+                return false
+            }
+        }
+
+        /// Finishes the probe as closed after `seconds`, unless it finishes first. Does nothing once
+        /// the probe is done. The work item holds the probe weakly: a cancelled item keeps its
+        /// captures until its deadline comes round, and the probe should not live that long.
+        func scheduleTimeout(on queue: DispatchQueue, after seconds: Double) {
+            phase.withLock { p in
+                guard case .waiting(let continuation, timeout: nil) = p else { return }
+                let item = DispatchWorkItem { [weak self] in self?.finish(false) }
+                p = .waiting(continuation, timeout: item)
+                queue.asyncAfter(deadline: .now() + seconds, execute: item)
+            }
+        }
+
+        /// Ends the probe once: cancels the connection and any pending deadline, and resumes the
+        /// caller, if it is waiting.
         func finish(_ open: Bool) {
             let continuation: CheckedContinuation<Bool, Never>?? = phase.withLock { p in
                 switch p {
                 case .done: return .none
                 case .idle: p = .done; return .some(nil)
-                case .waiting(let c): p = .done; return .some(c)
+                case .waiting(let c, let timeout):
+                    p = .done
+                    timeout?.cancel()
+                    return .some(c)
                 }
             }
             guard case .some(let waiting) = continuation else { return }
@@ -133,6 +163,8 @@ public struct SubnetSweep: CandidateSource {
                         Self.log.info(
                             "Subnet has \(size, privacy: .public) addresses, over the limit of \(maxAddresses, privacy: .public); not sweeping"
                         )
+                    } else if size & (size - 1) != 0 {
+                        Self.log.info("Netmask is not contiguous; not sweeping")
                     }
                 }
                 let start = ContinuousClock.now

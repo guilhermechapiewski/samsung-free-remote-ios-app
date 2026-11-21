@@ -30,13 +30,20 @@ public struct HTTPTVInfoFetcher: TVInfoFetching {
         let (seconds, attoseconds) = timeout.components
         request.timeoutInterval = Double(seconds) + Double(attoseconds) / 1e18
 
-        var body = Data()
+        // `timeoutInterval` only bounds the gap between packets; a body dripping in slowly would never
+        // trip it, so the whole fetch also races an overall deadline of `timeout`.
+        let finalRequest = request
+        let body: Data
         do {
-            let (bytes, response) = try await session.bytes(for: request, delegate: NoRedirectDelegate())
-            guard let http = response as? HTTPURLResponse, http.statusCode == 200 else { throw TVInfoError.unreachable }
-            for try await byte in bytes {
-                body.append(byte)
-                if body.count > maxBytes { throw TVInfoError.tooLarge }
+            body = try await withThrowingTaskGroup(of: Data.self) { group in
+                group.addTask { try await download(finalRequest) }
+                group.addTask {
+                    try await Task.sleep(for: timeout)
+                    throw TVInfoError.unreachable
+                }
+                defer { group.cancelAll() }
+                guard let first = try await group.next() else { throw TVInfoError.unreachable }
+                return first
             }
         } catch let error as TVInfoError {
             throw error
@@ -44,6 +51,17 @@ public struct HTTPTVInfoFetcher: TVInfoFetching {
             throw .unreachable
         }
         return try TVDeviceInfo.decode(body, host: host)
+    }
+
+    private func download(_ request: URLRequest) async throws -> Data {
+        let (bytes, response) = try await session.bytes(for: request, delegate: NoRedirectDelegate())
+        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else { throw TVInfoError.unreachable }
+        var body = Data()
+        for try await byte in bytes {
+            body.append(byte)
+            if body.count > maxBytes { throw TVInfoError.tooLarge }
+        }
+        return body
     }
 }
 
