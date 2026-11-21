@@ -4,6 +4,12 @@ title: Simple TV Remote for Samsung
 
 # Simple TV Remote for Samsung
 
+<p>
+  <a href="https://apps.apple.com/app/id6837036849"
+     style="display: inline-block; padding: 14px 26px; border-radius: 12px; background: #000; color: #fff;
+            font-size: 1.15em; font-weight: 600; text-decoration: none;">Download on the App Store</a>
+</p>
+
 A calm, fast iPhone remote for Samsung Smart TVs (Tizen). Open it and your TV is there: it finds your TV on your
 Wi-Fi by itself, connects in seconds, and always shows what's happening. Everything the remote that came with
 your TV does is here: power, volume, channels, the arrow pad, Source and HDMI inputs, a number pad, and typing
