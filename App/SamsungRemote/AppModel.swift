@@ -289,7 +289,10 @@ final class AppModel {
 
     /// `userStarted` scans always include the subnet sweep.
     private func refresh(restartScan: Bool = true, userStarted: Bool = false) {
+        let wasOnWiFi = onWiFi
         onWiFi = env.wifiInterface() != nil
+        // Back on Wi-Fi (e.g. after a router restart, which may move the TV): a fresh missing-TV rescan.
+        if onWiFi, !wasOnWiFi { resetMissingTVRescan() }
         guard onWiFi else {
             repeater.end()
             cancelScan()
@@ -328,13 +331,14 @@ final class AppModel {
 
     /// Starts a scan. It includes the subnet sweep (up to 1,024 probes) only when `sweepAnyway` or when
     /// no TV is known; otherwise Bonjour (and SSDP) and probing the known addresses look for the TVs.
-    /// (A known TV that is off misses every scan, so a missed TV is no reason to sweep.)
+    /// (A known TV that is off misses every scan, so a missed TV is no reason to sweep.) A scan that
+    /// replaces a sweeping one, or the user's Scan Again, keeps the sweep.
     private func startScan(sweepAnyway: Bool = false) {
+        let sweep = sweepAnyway || registry.tvs.isEmpty || (scanning && scanSweeps) || scanAgainBaseline != nil
         scanTask?.cancel()
         scanGeneration += 1
         let generation = scanGeneration
         scanning = true
-        let sweep = sweepAnyway || registry.tvs.isEmpty
         scanSweeps = sweep
         foundThisScan = []
         forgottenThisScan = []
@@ -945,10 +949,12 @@ final class AppModel {
 
     /// The selected TV has missed `missedChecksBeforeRescan` checks in a row: it may have moved to another
     /// address, so scan with the subnet sweep, once until the TV answers, another TV is selected or the app
-    /// returns from the background (a TV that is simply off would otherwise sweep over and over). Shows no
+    /// returns from the background or to Wi-Fi (a TV that is simply off would otherwise sweep over and
+    /// over). Skipped while the TV is one this app just turned off: it is expected not to answer. Shows no
     /// Scan Again feedback.
     private func rescanIfSelectedTVMissing() {
-        guard missedChecks >= Self.missedChecksBeforeRescan, !missingTVRescanDone, !scanning else { return }
+        guard missedChecks >= Self.missedChecksBeforeRescan, !missingTVRescanDone, !scanning,
+              !selectedTurnedOff else { return }
         missingTVRescanDone = true
         startScan(sweepAnyway: true)
     }

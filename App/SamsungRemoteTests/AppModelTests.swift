@@ -1805,6 +1805,12 @@ private let tvC = info("uuid:c", host: "192.168.1.12", name: "Alpha", model: "QE
         await drain()
         #expect(h.discovery.scans.isEmpty)
         #expect(h.sessions.list.isEmpty)
+        // Back in front, the foreground refresh notices Wi-Fi.
+        h.model.scenePhaseChanged(.active)
+        await settle { !h.discovery.scans.isEmpty }
+        #expect(h.model.screen != .noWiFi)
+        #expect(h.discovery.scans.count == 1)
+        #expect(h.sessions.list.count == 1)
     }
 
     // MARK: - Rescanning for a missing TV
@@ -1853,6 +1859,100 @@ private let tvC = info("uuid:c", host: "192.168.1.12", name: "Alpha", model: "QE
         await tick(h, times: AppModel.missedChecksBeforeRescan - 1)
         #expect(h.discovery.scans.count == 4)
         await miss(h, 1, scansAfter: 5)
+    }
+
+    /// The newest session fails as unreachable once it has connected, so the watch runs on it.
+    private func failNewSession(_ h: Harness, sessions: Int) async {
+        await settle { h.sessions.list.count == sessions && h.sessions.last?.snapshot.connects == 1 }
+        h.sessions.last?.emit(.failed(.unreachable))
+        await drain()
+    }
+
+    /// From an unreachable selected TV, runs the first missing-TV rescan (scan 2) and finishes it.
+    private func firstMissingTVRescan(_ h: Harness) async {
+        await unreachableSelected(h)
+        await miss(h, AppModel.missedChecksBeforeRescan, scansAfter: 2)
+        h.discovery.finish()
+        await drain()
+    }
+
+    @Test func selectingAnotherTVResetsTheMissingTVRescan() async {
+        let h = Harness(known: [tvA, tvB], selected: tvA.id)
+        await firstMissingTVRescan(h)
+        h.model.select(tvB.id)
+        await failNewSession(h, sessions: 2)
+        await tick(h, times: AppModel.missedChecksBeforeRescan - 1)
+        #expect(h.discovery.scans.count == 2)
+        await miss(h, 1, scansAfter: 3)
+    }
+
+    @Test func forgettingTheSelectedTVResetsTheMissingTVRescan() async {
+        let h = Harness(known: [tvA, tvB], selected: tvA.id)
+        await firstMissingTVRescan(h)
+        h.model.forget(tvA.id)
+        h.model.select(tvB.id)
+        await failNewSession(h, sessions: 2)
+        await tick(h, times: AppModel.missedChecksBeforeRescan - 1)
+        #expect(h.discovery.scans.count == 2)
+        await miss(h, 1, scansAfter: 3)
+    }
+
+    @Test func wiFiReturningResetsTheMissingTVRescan() async {
+        let h = Harness(known: [tvA], selected: tvA.id)
+        await firstMissingTVRescan(h)
+        h.wifi.isOn = false // e.g. the router restarts, and may give the TV another address
+        h.wifiChanges.yield()
+        await settle { h.model.screen == .noWiFi }
+        h.wifi.isOn = true
+        h.wifiChanges.yield()
+        await settle { h.discovery.scans.count == 3 }
+        #expect(h.discovery.sweeps.last == false) // automatic
+        h.discovery.finish()
+        await failNewSession(h, sessions: 2)
+        await tick(h, times: AppModel.missedChecksBeforeRescan - 1)
+        #expect(h.discovery.scans.count == 3)
+        await miss(h, 1, scansAfter: 4)
+    }
+
+    @Test func aTVThisAppTurnedOffIsNotRescannedFor() async {
+        let h = Harness(known: [tvA], selected: tvA.id, power: .turnedOff, powerPlan: .turnOff)
+        await connected(h)
+        h.model.togglePower()
+        await settle { !h.model.powerBusy && h.discovery.scans.count == 2 }
+        h.discovery.finish() // the scan after turning off
+        h.sessions.last?.emit(.failed(.unreachable)) // the TV went off
+        await settle { h.model.status == StatusLine.tvOff }
+        await tick(h, times: AppModel.missedChecksBeforeRescan + 2)
+        #expect(h.discovery.scans.count == 2)
+    }
+
+    @Test func scanAgainJoinsARunningMissingTVSweep() async {
+        let h = Harness(known: [tvA], selected: tvA.id)
+        await unreachableSelected(h)
+        await miss(h, AppModel.missedChecksBeforeRescan, scansAfter: 2) // still running
+        h.model.scanAgain()
+        #expect(h.model.scanFeedback == .scanning)
+        await drain()
+        #expect(h.discovery.scans.count == 2)
+        h.discovery.yield(.found(tvB))
+        h.discovery.finish()
+        await settle { h.model.scanFeedback != .scanning }
+        #expect(h.model.scanFeedback == .found(newTVs: 1))
+    }
+
+    @Test func anAutomaticRefreshDuringScanAgainKeepsTheSweep() async {
+        let h = Harness(known: [tvA], selected: tvA.id) // power turns the TV on
+        await connected(h)
+        h.model.scanAgain()
+        await settle { h.discovery.scans.count == 2 }
+        #expect(h.discovery.sweeps == [false, true])
+        h.model.togglePower() // its outcome refreshes, replacing the running scan
+        await settle { h.discovery.scans.count == 3 }
+        #expect(h.discovery.sweeps.last == true)
+        #expect(h.model.scanFeedback == .scanning)
+        h.discovery.finish()
+        await settle { h.model.scanFeedback != .scanning }
+        #expect(h.model.scanFeedback == .found(newTVs: 0))
     }
 
     @Test func anAnswerResetsTheMissedChecksBeforeARescan() async {
