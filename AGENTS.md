@@ -51,12 +51,12 @@ xcodebuild test -project SamsungRemote.xcodeproj -scheme SamsungRemote \
 
 ## Multicast entitlement
 
-`SAMSUNG_REMOTE_MULTICAST` (`YES`/`NO`, default `NO`, set in `Config/Local.xcconfig`) selects the entitlements
-file and tells the app (Info.plist `SRMulticastEnabled`) whether SSDP discovery and broadcast Wake-on-LAN are
-available. Never set `SAMSUNG_REMOTE_ENTITLEMENTS` directly; the "Check entitlements" build phase fails the build
-if the two disagree. Without the entitlement the app uses Bonjour discovery plus a subnet sweep (when the user scans,
-no TV is known, or the selected TV stops answering), and a unicast wake packet. Leave it `NO`; only the maintainer's builds can use `YES`. See
-`docs/protocol-notes.md`.
+`SAMSUNG_REMOTE_MULTICAST` (`YES`/`NO`, default `YES`) selects the entitlements file and tells the app (Info.plist
+`SRMulticastEnabled`) whether SSDP discovery and broadcast Wake-on-LAN are available. The released app has the
+entitlement. Never set `SAMSUNG_REMOTE_ENTITLEMENTS` directly; the "Check entitlements" build phase fails the build if
+the two disagree. Simulator builds and CI work either way. A team without the entitlement sets
+`SAMSUNG_REMOTE_MULTICAST = NO` in `Config/Local.xcconfig` to build for a device; the app then uses Bonjour plus the
+subnet sweep and a unicast wake packet. Keep the `NO` path working. See `docs/protocol-notes.md`.
 
 ## When behaviour changes
 

@@ -2,8 +2,7 @@
 
 Checks that need a real iPhone and real Samsung TVs. Contributors: run the sections your change touches, on
 whatever TVs you have, and list the TV model years in your pull request. Run each step once per TV unless it
-says otherwise. Steps marked **[no multicast]** apply to normal builds (`SAMSUNG_REMOTE_MULTICAST = NO`, the
-default); steps marked **[multicast]** apply only to builds signed with the multicast networking entitlement.
+says otherwise. The steps assume a build with multicast on (the default).
 
 **Record results privately.** Do not commit IP addresses, MAC addresses, serial numbers, device IDs, network
 names or TV names. In public notes, refer to TVs only by model year and series.
@@ -22,6 +21,7 @@ names or TV names. In public notes, refer to TVs only by model year and series.
 - [ ] **Slow answer to the prompt:** on first launch, wait 10 s before answering the Local Network prompt, then
       Allow → TVs appear without a relaunch.
 - [ ] A TV that does not answer SSDP (find via `tvprobe`) is still found (Bonjour or the known-TV probe).
+- [ ] A TV with AirPlay turned off that answers SSDP appears on launch, without Scan Again.
 - [ ] A TV in standby that still answers on the network is found and shown as Asleep.
 - [ ] "Scan again" refreshes the list; TVs that are on are listed first.
 - [ ] Scan Again (TV menu) shows a spinner and "Looking for TVs…" on the TV card with a light tap, then
@@ -75,12 +75,11 @@ a haptic tap:
 - [ ] After turning off with the app, confirm the TV shows Asleep/Off in the picker (not On) — some TVs keep
       the WebSocket open in standby — and the status line says the TV is off (never "Connecting…").
 - [ ] **Power on from standby:** within a few minutes of turning it off, Power turns the TV on.
-- [ ] **[multicast] Power on from deep sleep:** after the TV has been off for 30+ minutes (no longer answering
-      on the network), Power sends Wake-on-LAN and the TV turns on; the app reconnects.
-- [ ] **[no multicast] Power on after a short while:** turn the TV off with its own remote, wait until the
-      picker shows it Asleep, then press Power within 5 minutes: record whether it turns on (unicast wake).
-- [ ] **[no multicast] Power on from deep sleep:** after 30+ minutes off, press Power: record whether it turns
-      on. If not, the message must suggest the TV's own remote (never a spinner without an explanation).
+- [ ] **Power on after a short while:** turn the TV off with its own remote, wait until the picker shows it
+      Asleep, then press Power within 5 minutes: the TV turns on (Wake-on-LAN) and the app reconnects.
+- [ ] **Power on from deep sleep:** after 30+ minutes off (no longer answering on the network), press Power:
+      record whether it turns on. If not, the message must suggest the TV's own remote (never a spinner without
+      an explanation).
 - [ ] With "Power On with Mobile" disabled, power-on fails with an explanation of that setting.
 
 ## Network changes

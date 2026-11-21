@@ -4,6 +4,6 @@ DEVELOPMENT_TEAM = YOUR_TEAM_ID
 // Bundle identifiers are unique across Apple, so pick your own (e.g. com.<yourname>.SamsungRemote).
 PRODUCT_BUNDLE_IDENTIFIER = org.example.SamsungRemote
 
-// Leave this off. It needs the multicast networking entitlement, which Apple grants per team on request;
-// with it, SSDP discovery and broadcast Wake-on-LAN are enabled and the multicast entitlements file is used.
-// SAMSUNG_REMOTE_MULTICAST = YES
+// Multicast (SSDP discovery, broadcast Wake-on-LAN) is on by default and needs the multicast networking
+// entitlement, which Apple grants per team on request. Without it, uncomment this to build for a device:
+// SAMSUNG_REMOTE_MULTICAST = NO

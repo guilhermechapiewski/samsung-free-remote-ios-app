@@ -5,8 +5,8 @@
 PRODUCT_BUNDLE_IDENTIFIER = org.example.SamsungRemote
 // The app and its Control Center extension must share these (the App Store rejects a mismatch); bump
 // them here only.
-MARKETING_VERSION = 1.0.1
-CURRENT_PROJECT_VERSION = 4
+MARKETING_VERSION = 1.1
+CURRENT_PROJECT_VERSION = 5
 
 IPHONEOS_DEPLOYMENT_TARGET = 27.0
 TARGETED_DEVICE_FAMILY = 1
@@ -16,11 +16,11 @@ SWIFT_STRICT_CONCURRENCY = complete
 CODE_SIGN_STYLE = Automatic
 DEVELOPMENT_TEAM =
 
-// YES only for builds signed by a team that Apple has granted the multicast networking entitlement
-// (com.apple.developer.networking.multicast). It picks the entitlements file and tells the app, via
-// SRMulticastEnabled in Info.plist, to use SSDP discovery and broadcast Wake-on-LAN. Set it in
-// Local.xcconfig, never here.
-SAMSUNG_REMOTE_MULTICAST = NO
+// On by default: the app uses the multicast networking entitlement (com.apple.developer.networking.multicast)
+// for SSDP discovery and broadcast Wake-on-LAN. It picks the entitlements file and tells the app, via
+// SRMulticastEnabled in Info.plist. Simulator builds work either way. A team that Apple has not granted the
+// entitlement sets SAMSUNG_REMOTE_MULTICAST = NO in Local.xcconfig to build for a device.
+SAMSUNG_REMOTE_MULTICAST = YES
 SAMSUNG_REMOTE_ENTITLEMENTS_NO = App/SamsungRemote/SamsungRemote.entitlements
 SAMSUNG_REMOTE_ENTITLEMENTS_YES = App/SamsungRemote/SamsungRemote+Multicast.entitlements
 SAMSUNG_REMOTE_ENTITLEMENTS = $(SAMSUNG_REMOTE_ENTITLEMENTS_$(SAMSUNG_REMOTE_MULTICAST))

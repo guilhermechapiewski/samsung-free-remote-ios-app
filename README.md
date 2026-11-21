@@ -63,9 +63,10 @@ Xcode's Signing & Capabilities, which writes the team into the project file; the
 there. The app uses iCloud key-value storage
 for TV names, which needs a paid Apple Developer Program membership (free personal teams cannot sign it).
 
-Leave `SAMSUNG_REMOTE_MULTICAST` off. It switches to SSDP discovery and broadcast Wake-on-LAN, which need a
-networking entitlement that Apple grants per team; the "Check entitlements" build phase keeps the setting and
-the signed entitlements in step. See [`docs/protocol-notes.md`](docs/protocol-notes.md) for how discovery and
+The app uses SSDP discovery and broadcast Wake-on-LAN, which need a multicast networking entitlement that Apple
+grants per team. If your team doesn't have it, add `SAMSUNG_REMOTE_MULTICAST = NO` to your `Config/Local.xcconfig` to
+build for a device (the simulator works either way); the "Check entitlements" build phase keeps the setting and the
+signed entitlements in step. See [`docs/protocol-notes.md`](docs/protocol-notes.md) for how discovery and
 power-on work with and without it.
 
 ### Tests
