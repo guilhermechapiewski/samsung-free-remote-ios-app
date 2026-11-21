@@ -55,7 +55,8 @@ struct AppEnvironment {
     var clock: any Clock<Duration>
     var userDefaults: UserDefaults
     /// Whether this build has the multicast networking entitlement (SSDP discovery and broadcast
-    /// Wake-on-LAN). Without it, discovery uses Bonjour only and waking sends a unicast packet only.
+    /// Wake-on-LAN). Without it, discovery uses Bonjour plus a subnet sweep (when the user scans or no TV
+    /// is known), and waking sends a unicast packet only.
     var multicastEnabled = false
 }
 

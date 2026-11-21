@@ -36,7 +36,6 @@ enum ScreenState: Equatable {
     case noWiFi, localNetworkDenied, searching, noTVs, chooseTV, ready, pairing, pairingDenied, identityChanged
 }
 
-/// What a running power toggle is doing, as decided by the power planner.
 /// Feedback for a scan the user started with Scan Again. Automatic scans show none.
 enum ScanFeedback: Equatable {
     case scanning
@@ -44,6 +43,7 @@ enum ScanFeedback: Equatable {
     case found(newTVs: Int)
 }
 
+/// What a running power toggle is doing, as decided by the power planner.
 enum PowerDirection: Equatable {
     case turningOn, turningOff
 }
@@ -89,7 +89,6 @@ final class AppModel {
     var powerDirection: PowerDirection? { selectedID.flatMap { powerDirections[$0] } }
     /// The TV is showing its on-screen keyboard and wants text.
     private(set) var keyboardRequested = false
-    /// A transient explanation for the user (why a press did nothing, why power failed, …).
     /// The last event worth telling the user about (a failure, a key that didn't arrive); cleared when the
     /// session makes progress or another TV is chosen.
     var statusEvent: StatusLine?
