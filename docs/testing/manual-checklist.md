@@ -85,6 +85,7 @@ a haptic tap:
       the app finds it again as the same TV (same name, still paired, no Allow prompt).
 - [ ] **Airplane mode:** turn on airplane mode — the app shows a no Wi-Fi state; turn it off — the app
       reconnects without a relaunch.
+- [ ] Turning Wi-Fi off and on from Control Center updates the app without tapping Try Again.
 - [ ] Background the app for a minute, return: it reconnects promptly.
 - [ ] **Local Network denied:** in Settings > Privacy & Security > Local Network, turn Simple TV Remote for Samsung off; the
       app shows the permission state with a working link to Settings. Turn it back on: discovery works again.

@@ -37,8 +37,9 @@ extension FileKnownTVStore: KnownTVPersisting {}
 
 /// Every dependency of `AppModel`: real objects in the app, fakes in tests and demo mode.
 struct AppEnvironment {
-    /// Starts one scan that also probes `knownHosts`; the stream ends when the scan is complete.
-    var makeDiscovery: @Sendable (_ knownHosts: [String]) async -> AsyncStream<DiscoveryEvent>
+    /// Starts one scan that also probes `knownHosts`, and sweeps the Wi-Fi subnet when `sweep` is true;
+    /// the stream ends when the scan is complete.
+    var makeDiscovery: @Sendable (_ knownHosts: [String], _ sweep: Bool) async -> AsyncStream<DiscoveryEvent>
     var makeSession: @Sendable (_ id: TVID, _ host: String) -> any RemoteSessionProtocol
     var makePowerController: @Sendable () -> any PowerToggling
     /// Used by "Add TV by IP address".
@@ -48,6 +49,9 @@ struct AppEnvironment {
     var knownTVStore: any KnownTVPersisting
     /// The current Wi-Fi interface, or nil when not on Wi-Fi.
     var wifiInterface: @Sendable () -> IPv4Interface?
+    /// Emits when Wi-Fi may have become available or unavailable (single consumer); `wifiInterface`
+    /// still decides whether the device is on Wi-Fi.
+    var wifiChanges: @Sendable () -> AsyncStream<Void>
     var clock: any Clock<Duration>
     var userDefaults: UserDefaults
     /// Whether this build has the multicast networking entitlement (SSDP discovery and broadcast
@@ -65,11 +69,12 @@ extension AppEnvironment {
             NetworkInterfaces.wifiIPv4(from: NetworkInterfaces.current())
         }
         return AppEnvironment(
-            makeDiscovery: { knownHosts in
-                await DiscoveryCoordinator(
-                    sources: multicast
-                        ? [BonjourSamsungBrowser(), SSDPSearcher(), SubnetSweep(interface: wifiInterface)]
-                        : [BonjourSamsungBrowser(), SubnetSweep(interface: wifiInterface)],
+            makeDiscovery: { knownHosts, sweep in
+                var sources: [any CandidateSource] = [BonjourSamsungBrowser()]
+                if multicast { sources.append(SSDPSearcher()) }
+                if sweep { sources.append(SubnetSweep(interface: wifiInterface)) }
+                return await DiscoveryCoordinator(
+                    sources: sources,
                     fetcher: discoveryFetcher,
                     knownHosts: knownHosts
                 ).scan()
@@ -91,6 +96,7 @@ extension AppEnvironment {
             labels: ICloudLabelStore(),
             knownTVStore: FileKnownTVStore(),
             wifiInterface: wifiInterface,
+            wifiChanges: { WiFiPathMonitor().changes() },
             clock: ContinuousClock(),
             userDefaults: .standard,
             multicastEnabled: multicast

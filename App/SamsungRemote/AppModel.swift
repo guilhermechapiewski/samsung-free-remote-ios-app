@@ -135,6 +135,10 @@ final class AppModel {
     @ObservationIgnored private var scanGeneration = 0
     /// The last completed scan found no TV (e.g. it ran while the Local Network prompt was up).
     @ObservationIgnored private var lastScanFoundNothing = false
+    /// The last completed scan did not find every known TV, so the next scan sweeps the subnet.
+    @ObservationIgnored private var lastScanMissedKnownTV = false
+    /// The running scan includes the subnet sweep.
+    @ObservationIgnored private var scanSweeps = false
     @ObservationIgnored private var deniedRetryTask: Task<Void, Never>?
     /// The TVs known when the user started a scan; nil while no user-started scan is running.
     @ObservationIgnored private var scanAgainBaseline: Set<TVID>?
@@ -144,12 +148,21 @@ final class AppModel {
     @ObservationIgnored private var connectingTicks = 0
     /// Consecutive watch checks the connected TV did not answer.
     @ObservationIgnored private var missedWhileConnected = 0
+    /// Consecutive watch checks the selected TV did not answer, in any watched session state.
+    @ObservationIgnored private var missedChecks = 0
+    /// Time since the last scan started for a missing selected TV; nil before the first.
+    @ObservationIgnored private var sinceMissingTVRescan: (() -> Duration)?
     /// A connected TV that misses this many checks in a row is treated as gone (an open connection to a TV
     /// that lost power can take the transport's 15-30 s ping cycle to notice).
     static let missedChecksBeforeReconnect = 2
+    /// When the selected TV misses this many watch checks in a row (it may have moved to another address),
+    /// a scan with the subnet sweep runs, at most once per `rescanForMissingTVInterval`.
+    static let missedChecksBeforeRescan = 5
+    static let rescanForMissingTVInterval: Duration = .seconds(60)
     /// The last watch check found the selected TV not answering while its session was retrying.
     private var watchFoundNoAnswer = false
     @ObservationIgnored private var labelTask: Task<Void, Never>?
+    @ObservationIgnored private var wifiTask: Task<Void, Never>?
     @ObservationIgnored private var appeared = false
     @ObservationIgnored private var inBackground = false
 
@@ -215,6 +228,10 @@ final class AppModel {
         labelTask = Task { [weak self] in
             for await _ in changes { self?.rebuildTVs() }
         }
+        let wifiChanges = env.wifiChanges()
+        wifiTask = Task { [weak self] in
+            for await _ in wifiChanges { self?.wifiMayHaveChanged() }
+        }
         rebuildTVs()
         refresh()
     }
@@ -243,14 +260,22 @@ final class AppModel {
         }
     }
 
-    /// Re-checks Wi-Fi, reconnects the selected TV if it has no session or its session failed
-    /// (this is also "Try Again"), and scans again.
-    func rescan() {
+    /// Wi-Fi may have come back or gone away (e.g. from Control Center): refreshes only when being on
+    /// Wi-Fi actually changed, so repeated path updates never stack scans or sessions.
+    private func wifiMayHaveChanged() {
+        guard !inBackground, (env.wifiInterface() != nil) != onWiFi else { return }
         refresh()
     }
 
+    /// Re-checks Wi-Fi, reconnects the selected TV if it has no session or its session failed
+    /// (this is also "Try Again"), and scans again, with the subnet sweep (the user asked).
+    func rescan() {
+        refresh(userStarted: true)
+    }
+
     /// The user's Scan Again: like `rescan()`, but shows progress and then how many new TVs were
-    /// found. Joins a scan that is already running instead of restarting it.
+    /// found. Joins a scan that is already running instead of restarting it, unless that scan skips the
+    /// subnet sweep: the user's scan always sweeps.
     func scanAgain() {
         guard scanFeedback != .scanning else { return }
         guard env.wifiInterface() != nil else {
@@ -260,10 +285,11 @@ final class AppModel {
         clearScanFeedback()
         scanAgainBaseline = Set(registry.tvs.keys)
         scanFeedback = .scanning
-        refresh(restartScan: !scanning)
+        refresh(restartScan: !scanning || !scanSweeps, userStarted: true)
     }
 
-    private func refresh(restartScan: Bool = true) {
+    /// `userStarted` scans always include the subnet sweep.
+    private func refresh(restartScan: Bool = true, userStarted: Bool = false) {
         onWiFi = env.wifiInterface() != nil
         guard onWiFi else {
             repeater.end()
@@ -273,7 +299,7 @@ final class AppModel {
             return
         }
         if let id = selectedID, current == nil || sessionFailed { openSession(id) }
-        if restartScan { startScan() }
+        if restartScan { startScan(sweepAnyway: userStarted) }
     }
 
     private func clearScanFeedback() {
@@ -301,17 +327,22 @@ final class AppModel {
 
     // MARK: - Discovery
 
-    private func startScan() {
+    /// Starts a scan. It includes the subnet sweep (up to 1,024 probes) only when `sweepAnyway`, when
+    /// no TV is known, or when the last completed scan missed a known TV; otherwise Bonjour (and SSDP)
+    /// and probing the known addresses find every TV that answered last time.
+    private func startScan(sweepAnyway: Bool = false) {
         scanTask?.cancel()
         scanGeneration += 1
         let generation = scanGeneration
         scanning = true
+        let sweep = sweepAnyway || registry.tvs.isEmpty || lastScanMissedKnownTV
+        scanSweeps = sweep
         foundThisScan = []
         forgottenThisScan = []
         let hosts = registry.tvs.values.map(\.lastHost).sorted()
         let makeDiscovery = env.makeDiscovery
         scanTask = Task { [weak self] in
-            let events = await makeDiscovery(hosts)
+            let events = await makeDiscovery(hosts, sweep)
             for await event in events {
                 guard let self, generation == self.scanGeneration else { return }
                 self.handle(event)
@@ -391,6 +422,7 @@ final class AppModel {
     private func finishScan() {
         scanning = false
         lastScanFoundNothing = foundThisScan.isEmpty
+        lastScanMissedKnownTV = registry.tvs.keys.contains { !foundThisScan.contains($0) }
         seen = seen.filter { foundThisScan.contains($0.key) }
         if let baseline = scanAgainBaseline { finishScanAgain(baseline: baseline) }
         // With no selection, pick the TV only when there is no choice to make.
@@ -406,6 +438,7 @@ final class AppModel {
         guard registry.tvs[id] != nil else { return }
         if id == selectedID, let current, current.host == registry.tvs[id]?.lastHost, !sessionFailed { return }
         repeater.end()
+        if id != selectedID { missedChecks = 0 }
         selectedID = id
         env.userDefaults.set(id.rawValue, forKey: Self.selectedTVKey)
         statusEvent = nil
@@ -659,11 +692,11 @@ final class AppModel {
         case .turnedOff:
             turnedOffTVs.insert(id)
             rebuildTVs()
-            rescan()
+            refresh()
         case .turnedOn:
             turnedOffTVs.remove(id)
             if sessionState != .connected { openSession(id) }
-            rescan()
+            refresh()
         case .failedToWake:
             statusEvent = .notTurnedOn
         case .noMACKnown:
@@ -698,6 +731,7 @@ final class AppModel {
             repeater.end()
             closeSession()
             selectedID = nil
+            missedChecks = 0
             env.userDefaults.removeObject(forKey: Self.selectedTVKey)
             statusEvent = nil
         }
@@ -880,6 +914,8 @@ final class AppModel {
     /// stops answering gets a fresh connection, which fails fast if it is really gone.
     private func watchChecked(_ info: TVDeviceInfo?, for id: TVID) {
         guard let info, info.id == id else {
+            missedChecks += 1
+            rescanIfSelectedTVMissing()
             switch sessionState {
             case .connecting:
                 watchFoundNoAnswer = true
@@ -896,6 +932,7 @@ final class AppModel {
         }
         watchFoundNoAnswer = false
         missedWhileConnected = 0
+        missedChecks = 0
         handle(.found(info)) // reconnects a failed session when the TV is on; clears "off" when on
         if info.powerState != .on, sessionState == .connected, !selectedTurnedOff {
             // Turned off with its own remote into network standby: the connection may stay open.
@@ -906,6 +943,22 @@ final class AppModel {
             connectingTicks = 0
             openSession(id)
         }
+    }
+
+    /// The selected TV has missed `missedChecksBeforeRescan` checks in a row: it may have moved to another
+    /// address, so scan with the subnet sweep, at most once per `rescanForMissingTVInterval`. Shows no
+    /// Scan Again feedback.
+    private func rescanIfSelectedTVMissing() {
+        guard missedChecks >= Self.missedChecksBeforeRescan, !scanning else { return }
+        if let elapsed = sinceMissingTVRescan?(), elapsed < Self.rescanForMissingTVInterval { return }
+        sinceMissingTVRescan = Self.stopwatch(env.clock)
+        startScan(sweepAnyway: true)
+    }
+
+    /// Returns the time elapsed on `clock` since this call.
+    private static func stopwatch<C: Clock<Duration>>(_ clock: C) -> () -> Duration {
+        let start = clock.now
+        return { start.duration(to: clock.now) }
     }
 
     // MARK: - TV details

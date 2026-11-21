@@ -72,7 +72,7 @@ enum DemoEnvironment {
         let scans = DemoScanCounter()
         let sessions = DemoScanCounter()
         return AppEnvironment(
-            makeDiscovery: { _ in
+            makeDiscovery: { _, _ in
                 // The launch scan answers at once (screenshots); later scans take a moment, like a
                 // real one, so Scan Again shows its progress.
                 let isFirst = scans.next() == 1
@@ -95,6 +95,7 @@ enum DemoEnvironment {
             labels: DemoLabels(),
             knownTVStore: DemoKnownTVStore(registry),
             wifiInterface: { interface },
+            wifiChanges: { AsyncStream { $0.finish() } },
             clock: ContinuousClock(),
             userDefaults: defaults
         )

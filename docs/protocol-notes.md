@@ -36,7 +36,11 @@ confirmed on real hardware; see the checklist at the end.
   addresses (prefixes shorter than /22) and for non-contiguous netmasks), 64 at a time with a 500 ms timeout
   each, nearest addresses first. Every address that accepts is a candidate and is confirmed with `/api/v2/`
   like the others. It needs neither multicast nor Bonjour, so it runs with and without the multicast
-  entitlement and finds TVs that advertise nothing.
+  entitlement and finds TVs that advertise nothing. Because it is the costly part of a scan, a scan includes
+  it only when the user started it (Scan Again, Try Again), when no TV is known yet, or when the previous
+  completed scan missed a known TV; otherwise Bonjour (and SSDP) plus probing the known addresses find every
+  TV that answered last time. When the selected TV misses 5 presence checks in a row (10 s) while the app is
+  in front, one scan with the sweep runs, at most once a minute, in case the TV moved to another address.
 
 ## Device info
 
