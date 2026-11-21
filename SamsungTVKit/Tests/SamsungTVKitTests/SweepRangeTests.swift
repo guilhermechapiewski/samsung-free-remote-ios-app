@@ -33,4 +33,10 @@ import Testing
     @Test func lowerLimitApplies() {
         #expect(SweepRange.hosts(around: iface("en0", "10.0.4.7", "255.255.252.0"), maxAddresses: 512).isEmpty)
     }
+    @Test func publicAddressYieldsNothing() {
+        #expect(SweepRange.hosts(around: iface("en0", "8.8.8.8", "255.255.255.240")).isEmpty)
+    }
+    @Test func carrierGradeNatAddressYieldsNothing() {
+        #expect(SweepRange.hosts(around: iface("en0", "100.64.1.5", "255.255.255.240")).isEmpty)
+    }
 }

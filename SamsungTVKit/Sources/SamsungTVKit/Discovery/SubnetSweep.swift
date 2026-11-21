@@ -125,7 +125,16 @@ public struct SubnetSweep: CandidateSource {
         let timeout = timeout, maxAddresses = maxAddresses
         return AsyncStream { continuation in
             let task = Task {
-                let hosts = interface().map { SweepRange.hosts(around: $0, maxAddresses: maxAddresses) } ?? []
+                let wifi = interface()
+                let hosts = wifi.map { SweepRange.hosts(around: $0, maxAddresses: maxAddresses) } ?? []
+                if let wifi {
+                    let size = SweepRange.addressCount(netmask: wifi.netmask)
+                    if size > UInt64(max(maxAddresses, 0)) {
+                        Self.log.info(
+                            "Subnet has \(size, privacy: .public) addresses, over the limit of \(maxAddresses, privacy: .public); not sweeping"
+                        )
+                    }
+                }
                 let start = ContinuousClock.now
                 var probed = 0, openCount = 0
                 await withTaskGroup(of: (String, Bool).self) { group in

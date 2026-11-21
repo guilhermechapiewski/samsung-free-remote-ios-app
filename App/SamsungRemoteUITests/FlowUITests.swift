@@ -88,7 +88,7 @@ final class FlowUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Feedback & Bug Reports"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["Privacy Policy"].exists) // required in the app by App Review 5.1.1(i)
         attachScreenshot(app, "menu")
-        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.95)).tap()
+        close.tap()
         XCTAssertTrue(close.waitForNonExistence(timeout: 5))
         XCTAssertTrue(app.buttons["Volume up"].isHittable)
 
@@ -109,7 +109,7 @@ final class FlowUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Scanning…"].exists)
         XCTAssertTrue(app.staticTexts["No new TVs found"].waitForExistence(timeout: 10))
         attachScreenshot(app, "scan-result")
-        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.95)).tap()
+        close.tap()
         XCTAssertTrue(close.waitForNonExistence(timeout: 5))
 
         // Can't Find Your TV? opens the help; its Scan Again closes the sheet and scans.
@@ -119,9 +119,10 @@ final class FlowUITests: XCTestCase {
         XCTAssertTrue(help.staticTexts["Turn on AirPlay on the TV."].waitForExistence(timeout: 5))
         help.buttons["Scan Again"].tap()
         XCTAssertTrue(help.waitForNonExistence(timeout: 5))
+        // The new scan clears the earlier result at once, so the next result is the help's own scan.
+        XCTAssertTrue(picker.waitForValue(containing: "Looking for TVs…", timeout: 5))
         XCTAssertTrue(app.staticTexts["No new TVs found"].waitForExistence(timeout: 10))
 
-        // Choosing another TV closes the menu.
         openMenu(app)
 
         // Choosing another TV closes the menu.

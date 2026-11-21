@@ -5,11 +5,16 @@ public enum SweepRange {
     /// Largest subnet (in addresses) that is swept; a /22 fits, a /21 does not.
     public static let maxAddresses = 1024
 
+    /// Number of addresses in the subnet described by `netmask` (host order).
+    static func addressCount(netmask: UInt32) -> UInt64 {
+        UInt64(~netmask) + 1
+    }
+
     /// Dotted IPv4 hosts of the interface's subnet, nearest to its own address first (ties: lower
     /// address first). Excludes the own address and, for prefixes of /30 or shorter, the network and
     /// broadcast addresses. Empty when the subnet holds more than `maxAddresses` addresses.
     public static func hosts(around interface: IPv4Interface, maxAddresses: Int = maxAddresses) -> [String] {
-        let size = UInt64(~interface.netmask) + 1
+        let size = addressCount(netmask: interface.netmask)
         guard size <= UInt64(max(maxAddresses, 0)) else { return [] }
 
         let network = UInt64(interface.address & interface.netmask)
