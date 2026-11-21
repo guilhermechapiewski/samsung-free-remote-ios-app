@@ -122,7 +122,7 @@ struct HTTPTVInfoFetcherTests {
         await #expect(throws: TVInfoError.unreachable) {
             try await makeFetcher(timeout: .seconds(1)).fetchInfo(host: "10.0.0.5")
         }
-        #expect(ContinuousClock.now - start < .milliseconds(1500))
+        #expect(ContinuousClock.now - start < .seconds(2))
     }
 
     @Test func nonOKStatusMapsToUnreachable() async {

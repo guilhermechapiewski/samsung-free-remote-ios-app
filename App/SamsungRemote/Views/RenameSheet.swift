@@ -10,6 +10,12 @@ struct RenameSheet: View {
     /// The first `ICloudLabelStore.maxLength` characters.
     static func limited(_ s: String) -> String { String(s.prefix(ICloudLabelStore.maxLength)) }
 
+    /// The field's placeholder: the TV's own name, or "TV name" when it has none (missing or empty).
+    static func placeholder(reportedName: String?) -> String {
+        guard let reportedName, !reportedName.isEmpty else { return "TV name" }
+        return reportedName
+    }
+
     let onSave: (String) -> Void
     let reportedName: String?
 
@@ -28,7 +34,7 @@ struct RenameSheet: View {
         NavigationStack {
             Form {
                 Section {
-                    TextField(reportedName ?? "TV name", text: $name)
+                    TextField(Self.placeholder(reportedName: reportedName), text: $name)
                         .focused($focused)
                         .textInputAutocapitalization(.words)
                         .submitLabel(.done)

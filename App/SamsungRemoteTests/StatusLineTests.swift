@@ -23,6 +23,12 @@ import UIKit
     @Test func pathsAreExact() {
         #expect(TVSettingsPath.deviceList == "Settings → All Settings → Connection → External Device Manager → Device Connect Manager → Device List")
         #expect(TVSettingsPath.deviceListOlder == "Settings → General → External Device Manager → Device Connect Manager → Device List")
+        #expect(TVSettingsPath.powerOnWithMobile
+            == "Settings → All Settings → Connection → Network → Expert Settings → Power On with Mobile")
+        #expect(TVSettingsPath.powerOnWithMobileOlder == "Settings → General → Network → Expert Settings → Power On with Mobile")
+        #expect(TVSettingsPath.airPlay == "Settings → All Settings → Connection → Apple AirPlay Settings")
+        #expect(TVSettingsPath.ipAddress
+            == "Settings → All Settings → Connection → Network → Network Status → IP Settings")
         #expect(StatusLine.blocked.detail
             == "On the TV, open \(TVSettingsPath.deviceList) and allow TV Remote. On older TVs: \(TVSettingsPath.deviceListOlder).")
         #expect(StatusLine.powerOnWithMobilePath

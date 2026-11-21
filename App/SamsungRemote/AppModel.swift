@@ -37,6 +37,7 @@ final class AppModel {
 
     static let log = Logger(subsystem: "SamsungRemote", category: "AppModel")
 
+    // `tvs`, `selectedID` and `keyboardRequested` are mutated only from `AppModel`'s extensions.
     var tvs: [TVListItem] = []
     var selectedID: TVID?
     /// A power toggle is in flight for the selected TV.
@@ -57,6 +58,8 @@ final class AppModel {
     private(set) var scanFeedback: ScanFeedback?
 
     var onWiFi = true
+    /// The Wi-Fi interface the last `refresh()` saw (nil when off Wi-Fi).
+    @ObservationIgnored private var lastWiFiInterface: IPv4Interface?
     var localNetworkDenied = false
     var scanning = false
     /// State of the selected TV's session (`.idle` when there is none).
@@ -112,6 +115,11 @@ final class AppModel {
     /// When the selected TV misses this many watch checks in a row (it may have moved to another address),
     /// a scan with the subnet sweep runs, once per foreground period for that TV until it answers again.
     static let missedChecksBeforeRescan = 5
+    /// The missing-TV rescan runs at most once per TV in this long, across launches: a TV that is simply
+    /// off would otherwise be swept for soon after almost every app open.
+    static let missingTVRescanCooldown: TimeInterval = 24 * 60 * 60
+    /// When each TV last had a missing-TV rescan: TV id → seconds since the reference date.
+    static let missingTVRescanDatesKey = "missingTVRescanDates"
     /// The last watch check found the selected TV not answering while its session was retrying.
     var watchFoundNoAnswer = false
     @ObservationIgnored private var labelTask: Task<Void, Never>?
@@ -214,10 +222,11 @@ final class AppModel {
         }
     }
 
-    /// Wi-Fi may have come back or gone away (e.g. from Control Center): refreshes only when being on
-    /// Wi-Fi actually changed, so repeated path updates never stack scans or sessions.
+    /// Wi-Fi may have come back, gone away (e.g. from Control Center) or moved to another network or
+    /// address: refreshes only when the Wi-Fi interface actually changed since the last one seen, so
+    /// repeated path updates never stack scans or sessions.
     private func wifiMayHaveChanged() {
-        guard !inBackground, (env.wifiInterface() != nil) != onWiFi else { return }
+        guard !inBackground, env.wifiInterface() != lastWiFiInterface else { return }
         refresh()
     }
 
@@ -245,7 +254,8 @@ final class AppModel {
     /// `userStarted` scans always include the subnet sweep.
     func refresh(restartScan: Bool = true, userStarted: Bool = false) {
         let wasOnWiFi = onWiFi
-        onWiFi = env.wifiInterface() != nil
+        lastWiFiInterface = env.wifiInterface()
+        onWiFi = lastWiFiInterface != nil
         // Back on Wi-Fi (e.g. after a router restart, which may move the TV): a fresh missing-TV rescan.
         if onWiFi, !wasOnWiFi { resetMissingTVRescan() }
         guard onWiFi else {

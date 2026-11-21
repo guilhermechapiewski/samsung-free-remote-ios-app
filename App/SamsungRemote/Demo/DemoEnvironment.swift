@@ -97,6 +97,7 @@ enum DemoEnvironment {
             wifiInterface: { interface },
             wifiChanges: { AsyncStream { $0.finish() } },
             clock: ContinuousClock(),
+            now: { Date() },
             userDefaults: defaults
         )
     }

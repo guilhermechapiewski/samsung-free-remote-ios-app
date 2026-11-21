@@ -179,7 +179,7 @@ struct TVMenuPanel: View {
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 10)
                     .accessibilityElement(children: .ignore)
-                    .accessibilityLabel(version)
+                    .accessibilityLabel(AppVersion.accessibilityText ?? version)
             }
         }
     }

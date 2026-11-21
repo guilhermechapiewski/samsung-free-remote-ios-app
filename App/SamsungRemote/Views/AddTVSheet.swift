@@ -58,7 +58,7 @@ struct AddTVSheet: View {
                         ProgressView()
                     } else {
                         Button("Add", action: add)
-                            .disabled(address.trimmingCharacters(in: .whitespaces).isEmpty)
+                            .disabled(address.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     }
                 }
             }

@@ -31,6 +31,7 @@ extension AppModel {
         }
         registry.forget(id)
         saveRegistry()
+        removeMissingTVRescanDate(for: id)
         seen[id] = nil
         turnedOffTVs.remove(id)
         env.labels.setLabel(nil, for: id)

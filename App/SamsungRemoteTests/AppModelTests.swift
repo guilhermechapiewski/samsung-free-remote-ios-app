@@ -19,14 +19,29 @@ private func knownTV(_ i: TVDeviceInfo) -> KnownTV {
             lastSeen: Date(timeIntervalSince1970: 0))
 }
 
-/// Whether the fake device is on Wi-Fi.
+/// Whether the fake device is on Wi-Fi, and its interface address there.
 private final class WiFiSwitch: Sendable {
     private let state: Mutex<Bool>
+    private let addressState = Mutex<UInt32>(0xC0A8_0102)
     init(_ on: Bool) { state = Mutex(on) }
     var isOn: Bool {
         get { state.withLock { $0 } }
         set { state.withLock { $0 = newValue } }
     }
+    var address: UInt32 {
+        get { addressState.withLock { $0 } }
+        set { addressState.withLock { $0 = newValue } }
+    }
+    var interface: IPv4Interface? {
+        isOn ? IPv4Interface(name: "en0", address: address, netmask: 0xFFFF_FF00) : nil
+    }
+}
+
+/// The model's wall clock, advanced by hand.
+private final class TestNow: Sendable {
+    private let state = Mutex(Date(timeIntervalSinceReferenceDate: 800_000_000))
+    var date: Date { state.withLock { $0 } }
+    func advance(by interval: TimeInterval) { state.withLock { $0 += interval } }
 }
 
 /// Lets a test hold async work until it opens the gate (open by default).
@@ -258,6 +273,7 @@ private struct Harness {
     /// What a real `PowerController` fetches, when the harness uses one.
     let powerFetcher: FakeFetcher
     let clock = TestClock()
+    let now = TestNow()
     let wifi: WiFiSwitch
     /// Emits the model's Wi-Fi change events.
     let wifiChanges: AsyncStream<Void>.Continuation
@@ -277,8 +293,7 @@ private struct Harness {
         defaults = UserDefaults(suiteName: "AppModelTests.\(UUID().uuidString)")!
         if let selected { defaults.set(selected.rawValue, forKey: "selectedTV") }
         let discovery = discovery, sessions = sessions, powerFake = self.power
-        let powerFetcher = powerFetcher, clock = clock
-        let iface = IPv4Interface(name: "en0", address: 0xC0A8_0102, netmask: 0xFFFF_FF00)
+        let powerFetcher = powerFetcher, clock = clock, now = now
         let (wifiStream, wifiChanges) = AsyncStream.makeStream(of: Void.self)
         self.wifiChanges = wifiChanges
         let env = AppEnvironment(
@@ -292,9 +307,10 @@ private struct Harness {
             credentials: credentials,
             labels: labels,
             knownTVStore: store,
-            wifiInterface: { [wifi = self.wifi] in wifi.isOn ? iface : nil },
+            wifiInterface: { [wifi = self.wifi] in wifi.interface },
             wifiChanges: { wifiStream },
             clock: clock,
+            now: { now.date },
             userDefaults: defaults,
             multicastEnabled: multicast
         )
@@ -1321,6 +1337,7 @@ private let tvC = info("uuid:c", host: "192.168.1.12", name: "Alpha", model: "QE
         h.model.playPause()
         for _ in 0..<100 { await Task.yield() }
         #expect(h.sessions.last?.snapshot.sent.isEmpty ?? true)
+        #expect(h.model.statusEvent != nil)
     }
 
     @Test func keyboardEventsAndText() async throws {
@@ -1803,6 +1820,21 @@ private let tvC = info("uuid:c", host: "192.168.1.12", name: "Alpha", model: "QE
         #expect(h.sessions.list.count == 1)
     }
 
+    @Test func aNewWiFiAddressRefreshes() async {
+        let h = Harness(known: [tvA], selected: tvA.id)
+        await h.appear()
+        h.discovery.finish()
+        await settle { h.sessions.last?.snapshot.connects == 1 }
+        h.wifiChanges.yield() // still on the same Wi-Fi: nothing to do
+        await drain()
+        #expect(h.discovery.scans.count == 1)
+        h.wifi.address = 0x0A00_0005 // still on Wi-Fi, but another network
+        for _ in 0..<3 { h.wifiChanges.yield() }
+        await settle { h.discovery.scans.count == 2 }
+        await drain()
+        #expect(h.discovery.scans.count == 2)
+    }
+
     @Test func wiFiChangesAreIgnoredInTheBackground() async {
         let h = Harness(known: [tvA], selected: tvA.id, wifi: false)
         h.model.onAppear()
@@ -1845,7 +1877,8 @@ private let tvC = info("uuid:c", host: "192.168.1.12", name: "Alpha", model: "QE
         await tick(h, times: 10) // still missing: no further sweep
         #expect(h.discovery.scans.count == 2)
 
-        // Back from the background: one more rescan after 5 misses.
+        // Back from the background a day later: one more rescan after 5 misses.
+        h.now.advance(by: AppModel.missingTVRescanCooldown + 1)
         h.model.scenePhaseChanged(.background)
         h.model.scenePhaseChanged(.active)
         await settle { h.discovery.scans.count == 3 && h.sessions.list.count == 2 }
@@ -1860,7 +1893,8 @@ private let tvC = info("uuid:c", host: "192.168.1.12", name: "Alpha", model: "QE
         h.discovery.finish()
         await drain()
 
-        // It answers once (asleep: nothing reconnects), then goes missing again: one more rescan.
+        // It answers once (asleep: nothing reconnects), then goes missing again a day later: one more rescan.
+        h.now.advance(by: AppModel.missingTVRescanCooldown + 1)
         h.fetcher.answer(standby)
         await tick(h)
         h.fetcher.infos = [:]
@@ -1908,6 +1942,7 @@ private let tvC = info("uuid:c", host: "192.168.1.12", name: "Alpha", model: "QE
     @Test func wiFiReturningResetsTheMissingTVRescan() async {
         let h = Harness(known: [tvA], selected: tvA.id)
         await firstMissingTVRescan(h)
+        h.now.advance(by: AppModel.missingTVRescanCooldown + 1)
         h.wifi.isOn = false // e.g. the router restarts, and may give the TV another address
         h.wifiChanges.yield()
         await settle { h.model.screen == .noWiFi }
@@ -1979,5 +2014,69 @@ private let tvC = info("uuid:c", host: "192.168.1.12", name: "Alpha", model: "QE
 
     @Test func rescanConstants() {
         #expect(AppModel.missedChecksBeforeRescan == 5)
+        #expect(AppModel.missingTVRescanCooldown == 24 * 60 * 60)
+    }
+
+    /// The stored missing-TV rescan time of `id`, if any.
+    private func rescanDate(_ h: Harness, _ id: TVID) -> Double? {
+        let dates = h.defaults.dictionary(forKey: AppModel.missingTVRescanDatesKey) as? [String: Double]
+        return dates?[id.rawValue]
+    }
+
+    /// Goes to the background and back, then fails the new session (number `sessions`) so the watch runs.
+    private func backgroundAndBack(_ h: Harness, scansAfter: Int, sessions: Int) async {
+        h.model.scenePhaseChanged(.background)
+        h.model.scenePhaseChanged(.active)
+        await settle { h.discovery.scans.count == scansAfter && h.sessions.list.count == sessions }
+        h.discovery.finish()
+        await failNewSession(h, sessions: sessions)
+    }
+
+    @Test func theMissingTVRescanRunsAtMostOnceADayPerTV() async {
+        let h = Harness(known: [tvA], selected: tvA.id)
+        await unreachableSelected(h)
+        #expect(rescanDate(h, tvA.id) == nil)
+        await miss(h, AppModel.missedChecksBeforeRescan, scansAfter: 2)
+        #expect(rescanDate(h, tvA.id) == h.now.date.timeIntervalSinceReferenceDate)
+        h.discovery.finish()
+        await drain()
+
+        // Within the day, a new foreground period does not sweep again.
+        h.now.advance(by: AppModel.missingTVRescanCooldown - 60)
+        await backgroundAndBack(h, scansAfter: 3, sessions: 2)
+        await tick(h, times: AppModel.missedChecksBeforeRescan + 2)
+        #expect(h.discovery.scans.count == 3)
+
+        // A day after the last one: one more.
+        h.now.advance(by: 61)
+        await backgroundAndBack(h, scansAfter: 4, sessions: 3)
+        await tick(h, times: AppModel.missedChecksBeforeRescan - 1)
+        #expect(h.discovery.scans.count == 4)
+        await miss(h, 1, scansAfter: 5)
+        #expect(rescanDate(h, tvA.id) == h.now.date.timeIntervalSinceReferenceDate)
+    }
+
+    @Test func eachTVHasItsOwnMissingTVRescanCooldown() async {
+        let h = Harness(known: [tvA, tvB], selected: tvA.id)
+        await firstMissingTVRescan(h)
+        h.model.select(tvB.id)
+        await failNewSession(h, sessions: 2)
+        await miss(h, AppModel.missedChecksBeforeRescan, scansAfter: 3)
+        h.discovery.finish()
+        await drain()
+        #expect(rescanDate(h, tvB.id) != nil)
+        // Back to the first TV: it already had its rescan today.
+        h.model.select(tvA.id)
+        await failNewSession(h, sessions: 3)
+        await tick(h, times: AppModel.missedChecksBeforeRescan + 2)
+        #expect(h.discovery.scans.count == 3)
+    }
+
+    @Test func forgettingATVRemovesItsMissingTVRescanDate() async {
+        let h = Harness(known: [tvA, tvB], selected: tvA.id)
+        await firstMissingTVRescan(h)
+        #expect(rescanDate(h, tvA.id) != nil)
+        h.model.forget(tvA.id)
+        #expect(rescanDate(h, tvA.id) == nil)
     }
 }

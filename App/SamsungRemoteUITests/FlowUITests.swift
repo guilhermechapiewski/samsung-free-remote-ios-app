@@ -64,14 +64,17 @@ final class FlowUITests: XCTestCase {
         app.buttons["Channel down"].tap()
         waitForLastKey(app, "KEY_CHDOWN", count: 3)
 
+        app.buttons["Play or pause"].tap()
+        waitForLastKey(app, "KEY_PLAY_BACK", count: 4)
+
         // Number pad.
         app.buttons["Number pad"].tap()
         let five = app.buttons["5"]
         XCTAssertTrue(five.waitForExistence(timeout: 5))
         five.tap()
-        waitForLastKey(app, "KEY_5", count: 4)
+        waitForLastKey(app, "KEY_5", count: 5)
         app.buttons["0"].tap()
-        waitForLastKey(app, "KEY_0", count: 5)
+        waitForLastKey(app, "KEY_0", count: 6)
         app.buttons["Done"].tap()
         XCTAssertTrue(app.buttons["Volume up"].waitForExistence(timeout: 5))
     }
@@ -250,9 +253,9 @@ final class FlowUITests: XCTestCase {
         field.typeText("hello")
         app.buttons["send-text"].tap()
         XCTAssertTrue(app.staticTexts["Sent"].waitForExistence(timeout: 5))
-        // The field keeps keyboard focus (a hardware keyboard may hide the on-screen one).
-        XCTAssertEqual(field.value(forKey: "hasKeyboardFocus") as? Bool, true,
-                       "the text field keeps keyboard focus after Send")
+        // The field keeps keyboard focus: typing fails without it.
+        field.typeText("x")
+        XCTAssertTrue((field.value as? String)?.hasSuffix("x") ?? false, "the text field keeps focus after Send")
         let lastText = app.descendants(matching: .any)["demo-last-text"]
         let sent = NSPredicate(format: "label == 'hello'")
         wait(for: [expectation(for: sent, evaluatedWith: lastText)], timeout: 5)

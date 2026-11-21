@@ -53,10 +53,12 @@ struct AppEnvironment {
     /// still decides whether the device is on Wi-Fi.
     var wifiChanges: @Sendable () -> AsyncStream<Void>
     var clock: any Clock<Duration>
+    /// The current wall-clock time (for limits that span launches, such as the missing-TV rescan's).
+    var now: @Sendable () -> Date
     var userDefaults: UserDefaults
     /// Whether this build has the multicast networking entitlement (SSDP discovery and broadcast
-    /// Wake-on-LAN). Without it, discovery uses Bonjour plus a subnet sweep (when the user scans or no TV
-    /// is known), and waking sends a unicast packet only.
+    /// Wake-on-LAN). Without it, discovery uses Bonjour plus a subnet sweep (when the user scans, no TV is
+    /// known, or the selected TV stops answering), and waking sends a unicast packet only.
     var multicastEnabled = false
 }
 
@@ -99,6 +101,7 @@ extension AppEnvironment {
             wifiInterface: wifiInterface,
             wifiChanges: { WiFiPathMonitor().changes() },
             clock: ContinuousClock(),
+            now: { Date() },
             userDefaults: .standard,
             multicastEnabled: multicast
         )

@@ -8,8 +8,25 @@ enum AppVersion {
         return "Version \(short) (\(build))"
     }
 
+    /// "Version 1.0.1, build 3" (what VoiceOver reads); nil when the bundle lacks either value.
+    static func accessibilityText(short: String?, build: String?) -> String? {
+        guard let short, let build else { return nil }
+        return "Version \(short), build \(build)"
+    }
+
     static var text: String? {
-        let info = Bundle.main.infoDictionary
-        return text(short: info?["CFBundleShortVersionString"] as? String, build: info?["CFBundleVersion"] as? String)
+        text(short: bundleShort, build: bundleBuild)
+    }
+
+    static var accessibilityText: String? {
+        accessibilityText(short: bundleShort, build: bundleBuild)
+    }
+
+    private static var bundleShort: String? {
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String
+    }
+
+    private static var bundleBuild: String? {
+        Bundle.main.infoDictionary?["CFBundleVersion"] as? String
     }
 }

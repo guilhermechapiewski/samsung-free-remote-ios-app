@@ -13,6 +13,19 @@ struct RemoteAvailability: Equatable {
     }
 }
 
+/// A light tick for each repeated click of a held key. Its own zero-size view, so only it reads
+/// `holdRepeats` and each repeat (about 10 a second) does not invalidate the whole remote.
+private struct HoldRepeatHaptics: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        Color.clear
+            .frame(width: 0, height: 0)
+            .accessibilityHidden(true)
+            .sensoryFeedback(.impact(weight: .light, intensity: 0.6), trigger: model.holdRepeats)
+    }
+}
+
 /// The remote screen (layout B, "classic remote"): TV picker, Power / Source / Mute, the D-pad, and
 /// the volume rocker, Back / Home / Play-Pause / 123, and the channel rocker.
 struct RemoteView: View {
@@ -39,8 +52,7 @@ struct RemoteView: View {
             }
         }
         .background(Color.remoteBackground.ignoresSafeArea())
-        // A light tick for each repeated click of a held key.
-        .sensoryFeedback(.impact(weight: .light, intensity: 0.6), trigger: model.holdRepeats)
+        .background(HoldRepeatHaptics())
     }
 
     private var content: some View {

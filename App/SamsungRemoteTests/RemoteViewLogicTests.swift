@@ -134,6 +134,18 @@ import SamsungTVKit
         #expect(AppVersion.text(short: "1.0.1", build: nil) == nil)
     }
 
+    @Test func appVersionAccessibilityText() {
+        #expect(AppVersion.accessibilityText(short: "1.0.1", build: "3") == "Version 1.0.1, build 3")
+        #expect(AppVersion.accessibilityText(short: nil, build: "3") == nil)
+        #expect(AppVersion.accessibilityText(short: "1.0.1", build: nil) == nil)
+    }
+
+    @Test func renamePlaceholderFallsBackForAMissingOrEmptyName() {
+        #expect(RenameSheet.placeholder(reportedName: "Living Room") == "Living Room")
+        #expect(RenameSheet.placeholder(reportedName: nil) == "TV name")
+        #expect(RenameSheet.placeholder(reportedName: "") == "TV name")
+    }
+
     @Test func renameLimitKeepsFirst40Characters() {
         let long = String(repeating: "a", count: 40) + "bcd"
         #expect(RenameSheet.limited(long) == String(repeating: "a", count: 40))

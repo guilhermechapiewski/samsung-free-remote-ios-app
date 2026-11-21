@@ -91,18 +91,39 @@ extension AppModel {
 
     /// The selected TV has missed `missedChecksBeforeRescan` checks in a row: it may have moved to another
     /// address, so scan with the subnet sweep, once until the TV answers, another TV is selected or the app
-    /// returns from the background or to Wi-Fi (a TV that is simply off would otherwise sweep over and
-    /// over). Skipped while the TV is one this app just turned off: it is expected not to answer. Shows no
-    /// Scan Again feedback.
+    /// returns from the background or to Wi-Fi, and at most once per `missingTVRescanCooldown` for that TV
+    /// (a TV that is simply off would otherwise be swept for over and over). Skipped while the TV is one
+    /// this app just turned off: it is expected not to answer. Shows no Scan Again feedback.
     private func rescanIfSelectedTVMissing() {
         guard missedChecks >= Self.missedChecksBeforeRescan, !missingTVRescanDone, !scanning,
-              !selectedTurnedOff else { return }
+              !selectedTurnedOff, let id = selectedID else { return }
+        let now = env.now()
+        var dates = missingTVRescanDates
+        if let last = dates[id.rawValue],
+           now.timeIntervalSinceReferenceDate - last < Self.missingTVRescanCooldown {
+            return
+        }
         missingTVRescanDone = true
+        dates[id.rawValue] = now.timeIntervalSinceReferenceDate
+        env.userDefaults.set(dates, forKey: Self.missingTVRescanDatesKey)
         startScan(sweepAnyway: true)
     }
 
+    /// Re-arms the once-per-foreground-period limit; the per-TV cooldown stays.
     func resetMissingTVRescan() {
         missedChecks = 0
         missingTVRescanDone = false
+    }
+
+    /// When each TV last had a missing-TV rescan (TV id → seconds since the reference date).
+    private var missingTVRescanDates: [String: Double] {
+        env.userDefaults.dictionary(forKey: Self.missingTVRescanDatesKey) as? [String: Double] ?? [:]
+    }
+
+    /// Forgets `id`'s missing-TV rescan time.
+    func removeMissingTVRescanDate(for id: TVID) {
+        var dates = missingTVRescanDates
+        guard dates.removeValue(forKey: id.rawValue) != nil else { return }
+        env.userDefaults.set(dates, forKey: Self.missingTVRescanDatesKey)
     }
 }
