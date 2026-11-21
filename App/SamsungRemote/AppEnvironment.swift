@@ -67,7 +67,9 @@ extension AppEnvironment {
         return AppEnvironment(
             makeDiscovery: { knownHosts in
                 await DiscoveryCoordinator(
-                    sources: multicast ? [BonjourSamsungBrowser(), SSDPSearcher()] : [BonjourSamsungBrowser()],
+                    sources: multicast
+                        ? [BonjourSamsungBrowser(), SSDPSearcher(), SubnetSweep(interface: wifiInterface)]
+                        : [BonjourSamsungBrowser(), SubnetSweep(interface: wifiInterface)],
                     fetcher: discoveryFetcher,
                     knownHosts: knownHosts
                 ).scan()

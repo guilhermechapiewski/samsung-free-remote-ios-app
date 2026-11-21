@@ -32,6 +32,10 @@ confirmed on real hardware; see the checklist at the end.
   did not help; a full restart (hold the remote's power button until the Samsung logo shows) restored it about
   a minute after boot. That model never answers SSDP, so without the multicast entitlement it can then only be
   added by IP address, and a saved TV is still found because known addresses are re-probed directly.
+- Subnet sweep: a TCP connect to port 8001 on every address of the Wi-Fi subnet (skipped above 1,024
+  addresses), 64 at a time with a 500 ms timeout each, nearest addresses first. Every address that accepts is a
+  candidate and is confirmed with `/api/v2/` like the others. It needs neither multicast nor Bonjour, so it
+  runs with and without the multicast entitlement and finds TVs that advertise nothing.
 
 ## Device info
 

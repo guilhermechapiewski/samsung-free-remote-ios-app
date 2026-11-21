@@ -162,4 +162,27 @@ struct DiscoveryCoordinatorTests {
         for _ in 0..<100 where !source.terminated.withLock({ $0 }) { try await Task.sleep(for: .milliseconds(10)) }
         #expect(source.terminated.withLock { $0 })
     }
+
+    @Test func sweptTVIsReported() async {
+        let sweep = SubnetSweep(interface: { iface("en0", "10.0.0.20", "255.255.255.0") },
+                                prober: FakeProber(open: ["10.0.0.7"]))
+        let fetcher = FakeFetcher(ids: ["10.0.0.7": "tv-a"])
+        let coordinator = DiscoveryCoordinator(
+            sources: [sweep, FakeSource(events: [.host("10.0.0.7")], delay: .milliseconds(10))],
+            fetcher: fetcher, knownHosts: [])
+        let events = await collect(await coordinator.scan())
+        #expect(foundIDs(events) == ["tv-a"])
+        #expect(events.count == 1)
+        #expect(fetcher.calls == ["10.0.0.7"])
+    }
+
+    @Test func sweptNonTVIsDropped() async {
+        let sweep = SubnetSweep(interface: { iface("en0", "10.0.0.20", "255.255.255.0") },
+                                prober: FakeProber(open: ["10.0.0.9"]))
+        let fetcher = FakeFetcher(ids: [:])
+        let coordinator = DiscoveryCoordinator(sources: [sweep], fetcher: fetcher, knownHosts: [])
+        let events = await collect(await coordinator.scan())
+        #expect(events.isEmpty)
+        #expect(fetcher.calls == ["10.0.0.9"])
+    }
 }
