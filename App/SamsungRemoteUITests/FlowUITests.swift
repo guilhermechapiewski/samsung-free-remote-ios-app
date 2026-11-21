@@ -109,6 +109,20 @@ final class FlowUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Scanning…"].exists)
         XCTAssertTrue(app.staticTexts["No new TVs found"].waitForExistence(timeout: 10))
         attachScreenshot(app, "scan-result")
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.95)).tap()
+        XCTAssertTrue(close.waitForNonExistence(timeout: 5))
+
+        // Can't Find Your TV? opens the help; its Scan Again closes the sheet and scans.
+        openMenu(app)
+        app.buttons["Can't Find Your TV?"].tap()
+        let help = app.scrollViews["find-tv-help"]
+        XCTAssertTrue(help.staticTexts["Turn on AirPlay on the TV."].waitForExistence(timeout: 5))
+        help.buttons["Scan Again"].tap()
+        XCTAssertTrue(help.waitForNonExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["No new TVs found"].waitForExistence(timeout: 10))
+
+        // Choosing another TV closes the menu.
+        openMenu(app)
 
         // Choosing another TV closes the menu.
         app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Bedroom'")).firstMatch.tap()
@@ -174,6 +188,12 @@ final class FlowUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'No TVs found.'")).firstMatch.exists)
         scanAgain.tap()
         XCTAssertTrue(scanAgain.waitForExistence(timeout: 10))
+
+        app.buttons["Can't Find Your TV?"].tap()
+        let help = app.scrollViews["find-tv-help"]
+        XCTAssertTrue(help.staticTexts["Restart the TV."].waitForExistence(timeout: 5))
+        help.buttons["Add TV by IP Address"].tap()
+        XCTAssertTrue(app.textFields["IP address"].waitForExistence(timeout: 5))
     }
 
     @MainActor
@@ -188,6 +208,18 @@ final class FlowUITests: XCTestCase {
         for _ in 0..<6 where !lastRow.isHittable { panel.swipeUp() }
         XCTAssertTrue(lastRow.isHittable, "the last row must be reachable by scrolling")
         attachScreenshot(app, "menu-large-text-scrolled")
+
+        // The help sheet scrolls to its last button at the largest text size.
+        app.buttons["Close menu"].tap()
+        XCTAssertTrue(app.buttons["Close menu"].waitForNonExistence(timeout: 5))
+        openMenu(app)
+        app.buttons["Can't Find Your TV?"].tap()
+        let help = app.scrollViews["find-tv-help"]
+        let addTV = help.buttons["Add TV by IP Address"]
+        XCTAssertTrue(help.waitForExistence(timeout: 5))
+        for _ in 0..<8 where !addTV.isHittable { help.swipeUp() }
+        XCTAssertTrue(addTV.isHittable, "Add TV by IP Address must be reachable by scrolling")
+        attachScreenshot(app, "find-tv-help-large-text")
     }
 
     @MainActor

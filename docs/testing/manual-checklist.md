@@ -28,6 +28,8 @@ names or TV names. In public notes, refer to TVs only by model year and series.
   "Found N new TVs" or "No new TVs found" with a success tap; the card returns to normal after about 3 s.
   Automatic scans (launch, returning to the app) show none of this.
 - [ ] "Add TV by IP…" adds a TV by its address; a public or invalid address is rejected with a message.
+- [ ] With AirPlay turned off on a TV that is on, a scan still finds it (subnet sweep).
+- [ ] A scan on the home Wi-Fi finishes in about the same time as before.
 - [ ] Relaunching the app shows remembered TVs immediately, including ones that are off (Unreachable/Asleep).
 
 ## Pairing
@@ -95,6 +97,8 @@ a haptic tap:
 - [ ] Switching TVs shows a blue "Connecting to <TV>…" line with a spinner, then a green "Connected to <TV>"
       for about 2 s; problems show in orange with a warning icon, in light and dark mode.
 - [ ] Scan Again keeps the menu open; newly found TVs appear in the list.
+- [ ] Can't Find Your TV? opens from the No TVs card and the TV menu; Scan Again and Add TV by IP Address
+      work from it.
 - [ ] **TV Details** with the TV on: shows "Checking the TV…" briefly, then model, year, IP, MAC, connection,
       resolution, features, language and country; long-press a value → Copy; Copy All copies everything.
 - [ ] **TV Details** with the TV unplugged: shows the last known details and the "didn't answer" note.

@@ -28,6 +28,7 @@ struct FindTVHelpSheet: View {
     var onAddTV: () -> Void
 
     @Environment(\.dismiss) private var dismiss
+    @ScaledMetric(relativeTo: .headline) private var badgeSize = 32
 
     var body: some View {
         NavigationStack {
@@ -38,7 +39,7 @@ struct FindTVHelpSheet: View {
                             Text("\(index + 1)")
                                 .font(.headline)
                                 .monospacedDigit()
-                                .frame(width: 32, height: 32)
+                                .frame(width: badgeSize, height: badgeSize)
                                 .background(.tint.opacity(0.15), in: Circle())
                                 .accessibilityHidden(true)
                             VStack(alignment: .leading, spacing: 4) {

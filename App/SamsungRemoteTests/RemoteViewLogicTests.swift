@@ -107,8 +107,7 @@ import SamsungTVKit
             == "Simple TV Remote for Samsung needs Local Network access to find your TV.")
         #expect(StateCard.message(for: .searching) == "Looking for TVs…")
         #expect(StateCard.message(for: .noTVs)
-            == "No TVs found. Turn your TV on and make sure your iPhone and TV are on the same Wi-Fi network. "
-            + "Still missing? Turn on AirPlay in the TV's settings, or add the TV by its IP address.")
+            == "No TVs found. Turn your TV on and make sure your iPhone and TV are on the same Wi-Fi network.")
         #expect(StateCard.message(for: .chooseTV) == "Choose your TV")
         #expect(StateCard.message(for: .pairing) == "Look at your TV and choose Allow.")
         #expect(StateCard.message(for: .pairingDenied)

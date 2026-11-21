@@ -123,6 +123,7 @@ struct StatusView: View {
 struct StateCard: View {
     let screen: ScreenState
     var onAddTV: (() -> Void)?
+    var onFindTVHelp: (() -> Void)?
 
     @Environment(AppModel.self) private var model
     @Environment(\.openURL) private var openURL
@@ -135,8 +136,7 @@ struct StateCard: View {
         case .localNetworkDenied: "Simple TV Remote for Samsung needs Local Network access to find your TV."
         case .searching: "Looking for TVs…"
         case .noTVs:
-            "No TVs found. Turn your TV on and make sure your iPhone and TV are on the same Wi-Fi network. "
-                + "Still missing? Turn on AirPlay in the TV's settings, or add the TV by its IP address."
+            "No TVs found. Turn your TV on and make sure your iPhone and TV are on the same Wi-Fi network."
         case .chooseTV: "Choose your TV"
         case .pairing: "Look at your TV and choose Allow."
         case .pairingDenied:
@@ -217,6 +217,10 @@ struct StateCard: View {
                 if let onAddTV {
                     Button("Add TV by IP Address", action: onAddTV)
                         .buttonStyle(.bordered)
+                }
+                if let onFindTVHelp {
+                    Button("Can't Find Your TV?", action: onFindTVHelp)
+                        .buttonStyle(.borderless)
                 }
             }
         case .chooseTV:

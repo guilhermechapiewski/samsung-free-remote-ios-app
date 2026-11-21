@@ -60,7 +60,7 @@ struct RootView: View {
             }
         }
         .modifier(TVMenuOverlay(isOpen: $menuOpen, onDetails: { sheet = .details($0) }, onRename: rename,
-                                onForget: forget, onAddTV: addTV))
+                                onForget: forget, onAddTV: addTV, onFindTVHelp: findTVHelp))
         // The card the menu grew from may be gone (Wi-Fi lost, TV forgotten on another device).
         .onChange(of: model.screen) { menuOpen = false }
         .sheet(item: $sheet) { sheetContent($0) }
@@ -96,7 +96,7 @@ struct RootView: View {
         ScrollView {
             VStack(spacing: 20) {
                 TVPicker()
-                StateCard(screen: model.screen, onAddTV: addTV)
+                StateCard(screen: model.screen, onAddTV: addTV, onFindTVHelp: findTVHelp)
                 if let event = model.statusEvent {
                     StatusView(event)
                 }

@@ -93,6 +93,7 @@ struct TVMenuPanel: View {
     var onRename: (TVID) -> Void
     var onForget: (TVID) -> Void
     var onAddTV: () -> Void
+    var onFindTVHelp: () -> Void
 
     @Environment(AppModel.self) private var model
     @Environment(\.openURL) private var openURL
@@ -160,6 +161,7 @@ struct TVMenuPanel: View {
             }
             row("Add TV by IP Address…", systemImage: "plus") { onAddTV() }
             scanRow
+            row("Can't Find Your TV?", systemImage: "questionmark.circle") { onFindTVHelp() }
             divider
             row(Self.feedbackTitle, systemImage: "exclamationmark.bubble",
                 trailing: "arrow.up.right") {
@@ -290,6 +292,7 @@ struct TVMenuOverlay: ViewModifier {
     var onRename: (TVID) -> Void
     var onForget: (TVID) -> Void
     var onAddTV: () -> Void
+    var onFindTVHelp: () -> Void
 
     func body(content: Content) -> some View {
         content
@@ -315,7 +318,8 @@ struct TVMenuOverlay: ViewModifier {
                                 onDetails: { id in close(); onDetails(id) },
                                 onRename: { id in close(); onRename(id) },
                                 onForget: { id in close(); onForget(id) },
-                                onAddTV: { close(); onAddTV() }
+                                onAddTV: { close(); onAddTV() },
+                                onFindTVHelp: { close(); onFindTVHelp() }
                             )
                             .frame(width: card.width)
                             // A real height limit, so the panel scrolls when its rows don't fit.
