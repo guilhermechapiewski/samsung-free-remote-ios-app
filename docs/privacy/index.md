@@ -18,7 +18,7 @@ your local network. **The app does not collect any data.**
 
 ## Network use
 
-The app talks only to TVs on your own local network (private or link-local addresses). It uses your local
+The app connects only to devices on your own local network (private or link-local addresses), to find and control your TVs. It uses your local
 network to find TVs, read their device information, send remote-control commands over an encrypted connection,
 and, if you turn a TV on, send a Wake-on-LAN packet on your local network. This is why iOS asks for Local
 Network permission. None of this traffic leaves your network.
