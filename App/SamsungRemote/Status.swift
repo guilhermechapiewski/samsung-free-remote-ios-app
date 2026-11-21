@@ -12,6 +12,11 @@ enum StatusTone: Hashable {
     case info
 }
 
+/// What a status's detail popover offers besides the text.
+enum StatusAction: Hashable {
+    case tryAgain
+}
+
 /// One status: a short title that fits on one line, and optionally a longer explanation shown on tap.
 struct StatusLine: Hashable {
     let title: String
@@ -20,8 +25,12 @@ struct StatusLine: Hashable {
     /// The leading icon. Progress shows a spinner instead; nil shows no icon. Never an "info" glyph: ⓘ is
     /// reserved for statuses that open a detail when tapped.
     let symbol: String?
+    /// A button shown under the detail in its popover.
+    let action: StatusAction?
 
-    init(_ title: String, tone: StatusTone, detail: String? = nil, symbol: String? = nil) {
+    init(_ title: String, tone: StatusTone, detail: String? = nil, symbol: String? = nil,
+         action: StatusAction? = nil) {
+        self.action = action
         self.title = title
         self.tone = tone
         self.detail = detail
@@ -46,8 +55,7 @@ extension StatusLine {
     /// Where Samsung TVs keep the setting that lets the app turn them on (2022 and newer under
     /// Connection; older models under General).
     static let powerOnWithMobilePath =
-        "Settings → Connection → Network → Expert Settings → Power On with Mobile "
-        + "(on some TVs: Settings → General → Network → Expert Settings)"
+        "\(TVSettingsPath.powerOnWithMobile) (on older TVs: \(TVSettingsPath.powerOnWithMobileOlder))"
 
     static let turningOn = StatusLine("Turning on…", tone: .progress)
     static let turningOff = StatusLine("Turning off…", tone: .progress)
@@ -66,7 +74,8 @@ extension StatusLine {
     static let unreachable = StatusLine(
         "Can't reach the TV", tone: .warning,
         detail: "Make sure the TV is on and connected to the same Wi-Fi network as this iPhone. "
-            + "If it's off, press Power to turn it on."
+            + "If it's off, press Power to turn it on.",
+        action: .tryAgain
     )
     /// Power-on didn't show the TV as on within the power controller's wait. The app keeps watching, so a
     /// TV that is just slow to boot still connects. A TV off for hours may not wake at all, broadcast or
@@ -88,15 +97,15 @@ extension StatusLine {
     )
     static let approvalTimedOut = StatusLine(
         "Allow wasn't chosen in time", tone: .warning,
-        detail: "The TV didn't confirm the connection in time. Choose the TV again in the menu, and choose "
-            + "Allow when the TV asks."
+        detail: "The TV didn't confirm the connection in time. Tap Try Again, then choose Allow when the TV asks.",
+        action: .tryAgain
     )
     static let chooseTVFirst = StatusLine("Choose a TV first", tone: .warning)
     static let chooseAllow = StatusLine("Choose Allow on the TV", tone: .info, symbol: "hand.tap.fill")
     static let blocked = StatusLine(
         "The TV blocked this iPhone", tone: .warning,
-        detail: "On the TV, open Settings → General → External Device Manager → Device Connection Manager "
-            + "→ Device List, and allow TV Remote."
+        detail: "On the TV, open \(TVSettingsPath.deviceList) and allow TV Remote. "
+            + "On older TVs: \(TVSettingsPath.deviceListOlder)."
     )
     static let identityChanged = StatusLine(
         "The TV's identity changed", tone: .warning,

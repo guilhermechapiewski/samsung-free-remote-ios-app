@@ -14,7 +14,7 @@ names or TV names. In public notes, refer to TVs only by model year and series.
       file was used).
 - [ ] iPhone and TVs on the same Wi-Fi network (not a guest network).
 - [ ] On each TV, "Power On with Mobile" / network standby is enabled (note the menu path per model).
-- [ ] Start clean: delete the app, and remove "TV Remote" (and any older "Free Remote" entry) from each TV's Device Connection Manager.
+- [ ] Start clean: delete the app, and remove "TV Remote" (and any older "Free Remote" entry) from each TV's Device Connect Manager.
 
 ## Discovery
 
@@ -38,7 +38,7 @@ names or TV names. In public notes, refer to TVs only by model year and series.
 - [ ] After relaunching the app, the TV connects without a new prompt.
 - [ ] Waiting without answering the prompt ends with a timed-out message and a way to retry.
 - [ ] **Pairing denied + recovery:** choose Deny on the TV; the app explains how to re-enable it in the TV's
-      Device Connection Manager. Re-enable (or remove the entry) on the TV, retry in the app, choose Allow: pairs.
+      Device Connect Manager. Re-enable (or remove the entry) on the TV, retry in the app, choose Allow: pairs.
 
 ## Every button
 

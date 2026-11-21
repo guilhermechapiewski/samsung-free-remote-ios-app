@@ -34,6 +34,7 @@ extension StatusTone {
 struct StatusView: View {
     let line: StatusLine?
 
+    @Environment(AppModel.self) private var model
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var showsDetail = false
     /// Every icon gets a slot this tall (about one line of text), so no symbol can make a chip taller.
@@ -67,17 +68,27 @@ struct StatusView: View {
             Button { showsDetail = true } label: { chip(line) }
                 .buttonStyle(.plain)
                 .popover(isPresented: $showsDetail) {
-                    Text(detail)
-                        .font(.callout)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .padding()
-                        .frame(idealWidth: 320)
-                        .presentationCompactAdaptation(.popover)
+                    VStack(spacing: 14) {
+                        Text(detail)
+                            .font(.callout)
+                            .fixedSize(horizontal: false, vertical: true)
+                        if line.action == .tryAgain {
+                            Button("Try Again") {
+                                showsDetail = false
+                                model.rescan()
+                            }
+                            .buttonStyle(.borderedProminent)
+                        }
+                    }
+                    .padding()
+                    .frame(idealWidth: 320)
+                    .presentationCompactAdaptation(.popover)
                 }
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel(line.title)
                 .accessibilityValue(detail)
                 .accessibilityAddTraits(.isButton)
+                .accessibilityHint("Shows details")
                 .accessibilityIdentifier("status")
         } else {
             chip(line)
@@ -140,8 +151,8 @@ struct StateCard: View {
         case .chooseTV: "Choose your TV"
         case .pairing: "Look at your TV and choose Allow."
         case .pairingDenied:
-            "Your TV blocked this iPhone. On the TV, open Settings → General → External Device Manager → "
-                + "Device Connection Manager → Device List, allow TV Remote, then tap Try Again."
+            "Your TV blocked this iPhone. On the TV, open \(TVSettingsPath.deviceList), allow TV Remote, "
+                + "then tap Try Again."
         case .identityChanged:
             "This TV's security identity changed (this can happen after a software update). Pair again to continue."
         }
@@ -268,6 +279,7 @@ struct StateCard: View {
 }
 
 #Preview {
+    @Previewable @State var model = AppModel(env: DemoEnvironment.make())
     VStack(spacing: 20) {
         StatusView(.connecting(to: "Living Room"))
         StatusView(.connected(to: "Living Room"))
@@ -277,4 +289,5 @@ struct StateCard: View {
     }
     .padding()
     .background(Color.remoteBackground)
+    .environment(model)
 }

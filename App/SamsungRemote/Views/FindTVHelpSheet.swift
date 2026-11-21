@@ -14,11 +14,11 @@ enum FindTVHelp {
         Step(title: "Use the same Wi-Fi.",
              detail: "Your iPhone and TV must be on the same network. Guest networks and networks that keep devices apart don't work."),
         Step(title: "Turn on AirPlay on the TV.",
-             detail: "On most models: Settings → All Settings → Connection → Apple AirPlay Settings → AirPlay: On."),
+             detail: "On most models: \(TVSettingsPath.airPlay) → AirPlay: On."),
         Step(title: "Restart the TV.",
              detail: "Turning it off and on with the remote isn't enough. Point the remote at the TV and hold the power button until the TV turns off and the Samsung logo appears, then let go. Wait about a minute after the TV is back, then tap Scan Again."),
         Step(title: "Add it by IP address.",
-             detail: "On most models, the TV shows its IP address under Settings → All Settings → Connection → Network → Network Status → IP Settings. Then tap Add TV by IP Address."),
+             detail: "On most models, the TV shows its IP address under \(TVSettingsPath.ipAddress). Then tap Add TV by IP Address."),
     ]
 }
 

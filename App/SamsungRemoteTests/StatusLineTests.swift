@@ -20,6 +20,23 @@ import UIKit
         #expect(StatusLine.connecting(to: "Den") == StatusLine("Connecting to Den…", tone: .progress))
     }
 
+    @Test func pathsAreExact() {
+        #expect(TVSettingsPath.deviceList == "Settings → All Settings → Connection → External Device Manager → Device Connect Manager → Device List")
+        #expect(TVSettingsPath.deviceListOlder == "Settings → General → External Device Manager → Device Connect Manager → Device List")
+        #expect(StatusLine.blocked.detail
+            == "On the TV, open \(TVSettingsPath.deviceList) and allow TV Remote. On older TVs: \(TVSettingsPath.deviceListOlder).")
+        #expect(StatusLine.powerOnWithMobilePath
+            == "\(TVSettingsPath.powerOnWithMobile) (on older TVs: \(TVSettingsPath.powerOnWithMobileOlder))")
+        #expect(StatusLine.approvalTimedOut.detail
+            == "The TV didn't confirm the connection in time. Tap Try Again, then choose Allow when the TV asks.")
+    }
+
+    @Test func tryAgainActions() {
+        #expect(StatusLine.approvalTimedOut.action == .tryAgain)
+        #expect(StatusLine.unreachable.action == .tryAgain)
+        #expect(StatusLine.tvOff.action == nil)
+    }
+
     @Test func onlyTappableStatusesLookTappable() {
         // ⓘ means "tap for more"; a decorative "i" on a status without a detail invites a tap that does
         // nothing (the owner tried to tap "The TV is off").
@@ -32,8 +49,9 @@ import UIKit
     /// The point of the fixed-height line: the remote below must not move, whatever is (or isn't) shown.
     @Test(arguments: [DynamicTypeSize.large, .accessibility3])
     func everyStatusTakesTheSameHeight(size: DynamicTypeSize) {
+        let model = AppModel(env: DemoEnvironment.make())
         func height(_ line: StatusLine?) -> CGFloat {
-            let host = UIHostingController(rootView: StatusView(line).environment(\.dynamicTypeSize, size))
+            let host = UIHostingController(rootView: StatusView(line).environment(model).environment(\.dynamicTypeSize, size))
             return host.sizeThatFits(in: CGSize(width: 354, height: CGFloat.infinity)).height
         }
         let empty = height(nil)

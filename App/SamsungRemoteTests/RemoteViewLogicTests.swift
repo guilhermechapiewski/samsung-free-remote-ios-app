@@ -100,9 +100,9 @@ import SamsungTVKit
         #expect(FindTVHelp.steps.map(\.detail) == [
             "A TV can only be found while it's on.",
             "Your iPhone and TV must be on the same network. Guest networks and networks that keep devices apart don't work.",
-            "On most models: Settings → All Settings → Connection → Apple AirPlay Settings → AirPlay: On.",
+            "On most models: \(TVSettingsPath.airPlay) → AirPlay: On.",
             "Turning it off and on with the remote isn't enough. Point the remote at the TV and hold the power button until the TV turns off and the Samsung logo appears, then let go. Wait about a minute after the TV is back, then tap Scan Again.",
-            "On most models, the TV shows its IP address under Settings → All Settings → Connection → Network → Network Status → IP Settings. Then tap Add TV by IP Address.",
+            "On most models, the TV shows its IP address under \(TVSettingsPath.ipAddress). Then tap Add TV by IP Address.",
         ])
     }
 
@@ -116,8 +116,9 @@ import SamsungTVKit
         #expect(StateCard.message(for: .chooseTV) == "Choose your TV")
         #expect(StateCard.message(for: .pairing) == "Look at your TV and choose Allow.")
         #expect(StateCard.message(for: .pairingDenied)
-            == "Your TV blocked this iPhone. On the TV, open Settings → General → External Device Manager → "
-            + "Device Connection Manager → Device List, allow TV Remote, then tap Try Again.")
+            == "Your TV blocked this iPhone. On the TV, open \(TVSettingsPath.deviceList), allow TV Remote, then tap Try Again.")
+        #expect(AddTVSheet.footerNote
+            == "Turn the TV on first. On most models, it shows its IP address under \(TVSettingsPath.ipAddress).")
         #expect(StateCard.message(for: .identityChanged)
             == "This TV's security identity changed (this can happen after a software update). "
             + "Pair again to continue.")

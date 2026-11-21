@@ -3,6 +3,8 @@ import SwiftUI
 
 /// Adds a TV that discovery did not find, by its local IP address.
 struct AddTVSheet: View {
+    static let footerNote =
+        "Turn the TV on first. On most models, it shows its IP address under \(TVSettingsPath.ipAddress)."
     static let invalidAddressMessage = "Enter a local IP address like 192.168.0.20."
     static let noTVMessage = "No Samsung TV answered at that address. Make sure the TV is on and on the same Wi-Fi network."
 
@@ -38,7 +40,7 @@ struct AddTVSheet: View {
                     if let error {
                         Text(error).foregroundStyle(.red)
                     } else {
-                        Text("Turn the TV on first. It shows its IP address in its network settings.")
+                        Text(Self.footerNote)
                     }
                 }
             }

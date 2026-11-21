@@ -368,8 +368,7 @@ private let tvC = info("uuid:c", host: "192.168.1.12", name: "Alpha", model: "QE
     @Test func powerTipMessageNamesTheSettingAndPath() {
         #expect(AppModel.powerTipMessage
             == "To turn this TV on from your iPhone, the TV's “Power On with Mobile” setting must be on: "
-            + "Settings → Connection → Network → Expert Settings → Power On with Mobile "
-            + "(on some TVs: Settings → General → Network → Expert Settings).")
+            + "\(TVSettingsPath.powerOnWithMobile) (on older TVs: \(TVSettingsPath.powerOnWithMobileOlder)).")
     }
 
     @Test func noWiFiShowsWiFiState() async {
