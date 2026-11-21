@@ -27,6 +27,11 @@ confirmed on real hardware; see the checklist at the end.
 - SSDP (`M-SEARCH` for `urn:samsung.com:device:RemoteControlReceiver:1` and
   `urn:dial-multiscreen-org:service:dial:1`) and Bonjour (Samsung TXT records) provide candidate hosts;
   every candidate is confirmed with the device-info request before it is reported.
+- AirPlay advertising can stop while the TV is on: a 2022 model kept answering on port 8001 (`PowerState`
+  `on`) but sent no `_airplay._tcp` or `_raop._tcp` records, with AirPlay on in its settings. Standby and back
+  did not help; a full restart (hold the remote's power button until the Samsung logo shows) restored it about
+  a minute after boot. That model never answers SSDP, so without the multicast entitlement it can then only be
+  added by IP address, and a saved TV is still found because known addresses are re-probed directly.
 
 ## Device info
 
